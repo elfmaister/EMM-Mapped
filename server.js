@@ -11,16 +11,17 @@ let playerData = [];
 
 app.post('/data', (req, res) => {
     try {
-        const data = req.body; // Expect raw JSON
+        console.log('Raw request body:', req.body);
+        const data = req.body.json ? JSON.parse(req.body.json) : req.body;
         if (!data || !data.name || !data.x || !data.y) {
-            console.error('Invalid request: Missing required fields');
+            console.error('Invalid request: Missing fields', req.body);
             return res.status(400).send('Missing required fields');
         }
         playerData = [data];
         console.log('Received:', playerData);
         res.sendStatus(200);
     } catch (err) {
-        console.error('Error parsing data:', err.message);
+        console.error('Error parsing data:', err.message, req.body);
         res.status(400).send('Invalid data format');
     }
 });
