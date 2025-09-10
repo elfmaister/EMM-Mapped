@@ -1,20 +1,27 @@
 const express = require('express');
 const app = express();
-app.use(express.json()); // Parse JSON bodies
+app.use(express.json());
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST');
+    next();
+});
 
-// Store latest data
 let playerData = [];
 
-// Receive data from GMod
 app.post('/data', (req, res) => {
-    playerData = [JSON.parse(req.body.data)]; // Update with new data
+    playerData = [JSON.parse(req.body.data)];
     console.log('Received:', playerData);
     res.sendStatus(200);
 });
 
-// Serve data to browser
 app.get('/data', (req, res) => {
     res.json(playerData);
 });
 
-app.listen(3000, () => console.log('Server running on https://emm-mapped.onrender.com'));
+// Add root route
+app.get('/', (req, res) => {
+    res.send('EMM Backend Running');
+});
+
+app.listen(process.env.PORT || 3000, () => console.log('Server running'));
