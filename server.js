@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true })); // Support form-encoded data
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST');
@@ -11,17 +12,24 @@ let playerData = [];
 
 app.post('/data', (req, res) => {
     try {
-        console.log('Raw request body:', req.body);
-        const data = req.body.json ? JSON.parse(req.body.json) : req.body;
-        if (!data || !data.name || !data.x || !data.y) {
-            console.error('Invalid request: Missing fields', req.body);
+        console.log('Raw request body:', JSON.stringify(req.body, null, 2)); // Debug full body
+        let data = req.body;
+
+        // Check if data is wrapped in a 'json' or 'data' field (form-encoded case)
+        if (req.body.json || req.body.data) {
+            data = JSON.parse(req.body.json || req.body.data);
+        }
+
+        if (!data || !data.name || data.x == null || data.y == null) {
+            console.error('Invalid request: Missing fields', JSON.stringify(req.body, null, 2));
             return res.status(400).send('Missing required fields');
         }
+
         playerData = [data];
-        console.log('Received:', playerData);
+        console.log('Processed:', playerData);
         res.sendStatus(200);
     } catch (err) {
-        console.error('Error parsing data:', err.message, req.body);
+        console.error('Error parsing data:', err.message, JSON.stringify(req.body, null, 2));
         res.status(400).send('Invalid data format');
     }
 });
