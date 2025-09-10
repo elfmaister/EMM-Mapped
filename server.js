@@ -10,16 +10,25 @@ app.use((req, res, next) => {
 let playerData = [];
 
 app.post('/data', (req, res) => {
-    playerData = [JSON.parse(req.body.data)];
-    console.log('Received:', playerData);
-    res.sendStatus(200);
+    try {
+        if (!req.body || !req.body.data) {
+            console.error('Invalid request: No data field');
+            return res.status(400).send('Missing data field');
+        }
+        const data = JSON.parse(req.body.data);
+        playerData = [data];
+        console.log('Received:', playerData);
+        res.sendStatus(200);
+    } catch (err) {
+        console.error('Error parsing data:', err.message);
+        res.status(400).send('Invalid data format');
+    }
 });
 
 app.get('/data', (req, res) => {
     res.json(playerData);
 });
 
-// Add root route
 app.get('/', (req, res) => {
     res.send('EMM Backend Running');
 });
