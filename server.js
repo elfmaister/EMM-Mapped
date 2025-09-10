@@ -11,11 +11,11 @@ let playerData = [];
 
 app.post('/data', (req, res) => {
     try {
-        if (!req.body || !req.body.data) {
-            console.error('Invalid request: No data field');
-            return res.status(400).send('Missing data field');
+        const data = req.body; // Expect raw JSON
+        if (!data || !data.name || !data.x || !data.y) {
+            console.error('Invalid request: Missing required fields');
+            return res.status(400).send('Missing required fields');
         }
-        const data = JSON.parse(req.body.data);
         playerData = [data];
         console.log('Received:', playerData);
         res.sendStatus(200);
