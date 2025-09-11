@@ -1,5 +1,10 @@
 const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -43,4 +48,30 @@ app.get('/', (req, res) => {
     res.send('EMM Backend Running');
 });
 
-app.listen(process.env.PORT || 3000, () => console.log('Server running'));
+// WebSocket handling
+wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+    ws.send(JSON.stringify({ players: playerData }));
+
+    ws.on('close', () => {
+        console.log('WebSocket client disconnected');
+    });
+
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+    });
+});
+
+// Broadcast updates on POST
+app.post('/data', (req, res) => {
+    // ... existing POST code ...
+    // After updating playerData:
+    wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ players: playerData }));
+        }
+    });
+    res.sendStatus(200);
+});
+
+server.listen(process.env.PORT || 3000, () => console.log('Server running on port', process.env.PORT || 3000));
