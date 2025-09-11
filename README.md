@@ -8,7 +8,7 @@ Features
 
 
 
-Tracks player positions and velocities in real-time.
+Tracks LOCAL player positions and velocities in real-time.
 
 
 
