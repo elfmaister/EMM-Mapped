@@ -13,8 +13,14 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the project root (includes index.html and gm_bigcity/)
 app.use(express.static(__dirname));
 
-// CORS middleware
+// CSP middleware
 app.use((req, res, next) => {
+    res.set('Content-Security-Policy', 
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'sha256-ieoeWczDHkReVBsRBqaal5AFMlBtNjMzgwKvLqi/tSU='; " +
+        "img-src 'self' data:; " +
+        "connect-src 'self' wss://emm-mapped.onrender.com;"
+    );
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST');
     next();
