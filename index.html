@@ -146,7 +146,7 @@
 
         // Initialize WebSocket for realtime player
         function initRealtimePlayer() {
-            const socket = new WebSocket('wss://emm-mapped.onrender.com');
+            const socket = new WebSocket('wss://emm-mapped.onrender.com/data');
             socket.onopen = () => {
                 console.log('WebSocket connected for realtime player');
             };
