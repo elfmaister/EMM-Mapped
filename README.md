@@ -1,6 +1,6 @@
 #EMM-Mapped
 
-EMM-Mapped is a tool designed to enhance the spectating experience for EMM Hunted in Garry's Mod by providing an interactive, real-time player tracking system on the gm_bigcity map.
+EMM-Mapped is a tool designed to enhance the spectating experience for EMM in Garry's Mod by providing an interactive, real-time player tracking system on the gm_bigcity map.
 
 Features
 
