@@ -17,6 +17,7 @@ Displays data on an interactive browser-based map.
 
 
 Built for the gm_bigcity map in Garry's Mod.
+(sketchfab.com/3d-models/gm-bigcity-f80855b6286944459392fc723ed0b50f)
 
 Installation
 
@@ -40,11 +41,12 @@ Spectating Platform:
 
 
 
-Create a folder and add index.html and script.js.
+Create a folder and add index.html gm_bigcity folder..
 
 
 
-Open index.html in a web browser to view the gm_bigcity map with real-time player tracking.
+start a local server with example "python3 -m http.server 8000"
+open http://localhost:8000/ in a web browser to view the gm_bigcity map with real-time player tracking.
 
 
 
@@ -54,7 +56,7 @@ Server Setup:
 
 
 
-The server is hosted at https://emm-mapped.onrender.com/data.
+The websocket server is hosted at https://emm-mapped.onrender.com/data.
 
 
 
@@ -70,7 +72,7 @@ Ensure the Garry's Mod client is running emm_client.lua.
 
 
 
-Open index.html in a browser to spectate player positions and velocities on the gm_bigcity map.
+Open http://localhost:8000/ in a browser to spectate player positions and velocities on the gm_bigcity map.
 
 
 
