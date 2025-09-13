@@ -1,13 +1,19 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
+const path = require('path');
+
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ noServer: true });
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files from the project root (includes index.html and gm_bigcity/)
+app.use(express.static(__dirname));
+
+// CORS middleware
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST');
@@ -15,6 +21,17 @@ app.use((req, res, next) => {
 });
 
 let playerData = [];
+
+// Handle WebSocket upgrade specifically on /data
+server.on('upgrade', (request, socket, head) => {
+    if (request.url === '/data') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
+    } else {
+        socket.destroy();
+    }
+});
 
 app.post('/data', (req, res) => {
     try {
@@ -47,12 +64,13 @@ app.get('/data', (req, res) => {
     res.json(playerData);
 });
 
+// Serve index.html at the root path
 app.get('/', (req, res) => {
-    res.send('EMM Backend Running');
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 wss.on('connection', (ws) => {
-    console.log('WebSocket client connected');
+    console.log('WebSocket client connected to /data');
     ws.send(JSON.stringify({ players: playerData }));
     ws.on('close', () => {
         console.log('WebSocket client disconnected');
