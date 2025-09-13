@@ -19,7 +19,9 @@ app.use((req, res, next) => {
         "default-src 'self'; " +
         "script-src 'self' 'unsafe-inline' 'sha256-ieoeWczDHkReVBsRBqaal5AFMlBtNjMzgwKvLqi/tSU='; " +
         "img-src 'self' data:; " +
-        "connect-src 'self' wss://emm-mapped.onrender.com wss://*;"
+        "connect-src 'self' wss://emm-mapped.onrender.com wss://*; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "font-src 'self' data:;"
     );
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST');
