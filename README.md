@@ -17,7 +17,7 @@ Displays data on an interactive browser-based map.
 
 
 Built for the gm_bigcity map in Garry's Mod.
-( sketchfab.com/3d-models/gm-bigcity-f80855b6286944459392fc723ed0b50f )
+( https://sketchfab.com/3d-models/gm-bigcity-f80855b6286944459392fc723ed0b50f )
 
 Installation
 
