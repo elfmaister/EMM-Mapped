@@ -13,6 +13,15 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the project root (includes index.html and gm_bigcity/)
 app.use(express.static(__dirname));
 
+// MIME types for GLTF assets
+app.use('/gm_bigcity', (req, res, next) => {
+    if (req.path.endsWith('.gltf')) res.type('model/gltf+json');
+    if (req.path.endsWith('.glb')) res.type('model/gltf-binary');
+    if (req.path.endsWith('.bin')) res.type('application/octet-stream');
+    if (req.path.endsWith('.png') || req.path.endsWith('.jpg') || req.path.endsWith('.jpeg')) res.type('image/jpeg');
+    next();
+});
+
 // CSP middleware
 app.use((req, res, next) => {
     res.set('Content-Security-Policy', 
@@ -75,6 +84,16 @@ app.get('/data', (req, res) => {
 // Serve index.html at the root path
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Static file not found handler for debugging
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !res.headersSent) {
+        console.log(`404 for static file: ${req.originalUrl}`);
+        res.status(404).send('File not found');
+    } else {
+        next();
+    }
 });
 
 wss.on('connection', (ws) => {
