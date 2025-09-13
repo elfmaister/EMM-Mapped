@@ -1,103 +1,56 @@
-#EMM-Mapped
-
-EMM-Mapped is a tool designed to enhance the spectating experience for EMM in Garry's Mod by providing an interactive, real-time player tracking system on the gm_bigcity map.
-
+EMM-Mapped: Real-Time Player Tracking for EMM
+EMM-Mapped transforms the spectating experience for EMM(Extended Movement Mod) in Garry's Mod by providing a dynamic, browser-based map that tracks player positions and velocities in real-time on the gm_bigcity map.
 Features
 
-
-
-
-
-Tracks LOCAL player positions and velocities in real-time.
-
-
-
-Displays data on an interactive browser-based map.
-
-
-
-Built for the gm_bigcity map in Garry's Mod.
-( https://sketchfab.com/3d-models/gm-bigcity-f80855b6286944459392fc723ed0b50f )
+Real-Time Player Tracking: Monitor local player positions and velocities as they move across the gm_bigcity map.
+Interactive Web Map: View player movements on a browser-based interface, enhancing spectating with live updates.
+Tailored for gm_bigcity: Designed specifically for the gm_bigcity map, ensuring accurate visualization. Explore the map.
 
 Installation
+Prerequisites
+
+Garry's Mod with the gm_bigcity map installed.
+A modern web browser (e.g., Chrome, Firefox, or Edge).
+(Optional) Node.js for running a local WebSocket server.
+
+Client-Side Setup
+
+Copy emm_client.lua to your Garry's Mod directory:garrysmod/garrysmod/lua/autorun/client/.
+Launch Garry's Mod and ensure the gm_bigcity map is loaded.
+
+Web Interface Setup
+
+Create a folder (e.g., emm-mapped) and place index.html and the gm_bigcity folder (containing map assets) inside it.
+Start a local server in the folder:  python3 -m http.server 8000
+
+
+Open http://localhost:8000/ in your web browser to view the interactive map.
+
+Server Setup
+
+Hosted Option: Use the WebSocket server at https://emm-mapped.onrender.com/data for seamless data streaming.
+Local Option: To run the server locally:
+Ensure package.json and server.js are in your project folder.
+Install dependencies:  npm install
+
+
+Start the server:  node server.js
 
 
 
 
-
-Client-Side Setup:
-
-
-
-
-
-Place emm_client.lua in garrysmod/garrysmod/lua/autorun/client/.
-
-
-
-Spectating Platform:
-
-
-
-
-
-Create a folder and add index.html gm_bigcity folder..
-
-
-
-start a local server with example "python3 -m http.server 8000"
-open http://localhost:8000/ in a web browser to view the gm_bigcity map with real-time player tracking.
-
-
-
-Server Setup:
-
-
-
-
-
-The websocket server is hosted at https://emm-mapped.onrender.com/data.
-
-
-
-Requires package.json and server.js for operation.
 
 Usage
 
-
-
-
-
-Ensure the Garry's Mod client is running emm_client.lua.
-
-
-
-Open http://localhost:8000/ in a browser to spectate player positions and velocities on the gm_bigcity map.
-
-
-
-The server (server.js) streams real-time data to the web interface.
-
-Requirements
-
-
-
-
-
-Garry's Mod with the gm_bigcity map.
-
-
-
-A modern web browser.
-
-
-
-Node.js (for running the server locally, if desired).
+Launch Garry's Mod with emm_client.lua running.
+Open http://localhost:8000/ in your browser to view the real-time map.
+Watch player positions and velocities update live as they move through gm_bigcity.
 
 Contributing
+Contributions are welcome! To contribute:
 
-Feel free to submit issues or pull requests to improve the tool. Ensure any changes are tested with gm_bigcity.
+Test changes on the gm_bigcity map.
+Submit issues or pull requests via the repository.
 
 License
-
 MIT License
