@@ -1,0 +1,11 @@
+Model Information:
+* title:	GM Bigcity
+* source:	https://sketchfab.com/3d-models/gm-bigcity-f80855b6286944459392fc723ed0b50f
+* author:	United 2.0 (Camera Titan) (https://sketchfab.com/savounited)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "GM Bigcity" (https://sketchfab.com/3d-models/gm-bigcity-f80855b6286944459392fc723ed0b50f) by United 2.0 (Camera Titan) (https://sketchfab.com/savounited) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
