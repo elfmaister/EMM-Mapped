@@ -9,8 +9,7 @@ if not timer.Exists("EMM_ClientTracker") then
             x = pos.x,
             y = pos.y,
             z = pos.z,
-            vel_len = vel:Length(),
-            vel_dir = math.atan2(vel.y, vel.x)
+            velocity = vel
         }
         local jsonData = util.TableToJSON(data)
         print("[EMM Client] Sending data: " .. jsonData)
