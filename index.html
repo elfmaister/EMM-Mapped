@@ -71,16 +71,16 @@
 
         // Load persistent max velocities
         const savedVelocities = JSON.parse(localStorage.getItem('maxVelocities') || '{}');
-        Object.entries(savedVelocities).forEach(([name, velocity]) => maxVelocities.set(name, velocity));
+        Object.entries(savedVelocities).forEach(([name, vel]) => maxVelocities.set(name, vel));
 
         // Function to update leaderboard UI
         function updateLeaderboard() {
             const tbody = document.getElementById('leaderboard-body');
             tbody.innerHTML = '';
             const sortedPlayers = Array.from(maxVelocities.entries()).sort((a, b) => b[1] - a[1]);
-            sortedPlayers.forEach(([name, velocity]) => {
+            sortedPlayers.forEach(([name, vel]) => {
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>${name}</td><td>${velocity.toFixed(2)}</td>`;
+                row.innerHTML = `<td>${name}</td><td>${vel.toFixed(2)}</td>`;
                 tbody.appendChild(row);
             });
         }
@@ -102,10 +102,10 @@
             const posZ = baseZ * modelScale;
 
             // Update max velocity if provided
-            if (data.velocity !== undefined) {
+            if (data.vel !== undefined) {
                 const currentMax = maxVelocities.get(data.name) || 0;
-                if (data.velocity > currentMax) {
-                    maxVelocities.set(data.name, data.velocity);
+                if (data.vel > currentMax) {
+                    maxVelocities.set(data.name, data.vel);
                     localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
                     updateLeaderboard();
                 }
