@@ -69,6 +69,14 @@
         const playerMeshes = new Map();
         const maxVelocities = new Map();
 
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let followTarget = null;
+        let lastDirection = new THREE.Vector3(0, 0, 1);
+
+        
+        const velocities = new Map();
+
         // Load persistent max velocities
         const savedVelocities = JSON.parse(localStorage.getItem('maxVelocities') || '{}');
         Object.entries(savedVelocities).forEach(([name, vel]) => maxVelocities.set(name, vel));
@@ -78,11 +86,17 @@
             const tbody = document.getElementById('leaderboard-body');
             tbody.innerHTML = '';
             const sortedPlayers = Array.from(maxVelocities.entries()).sort((a, b) => b[1] - a[1]);
-            sortedPlayers.forEach(([name, vel]) => {
+            sortedPlayers.forEach(([name, vel], i) => {
+                if (name === "unconnected") return;
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>${name}</td><td>${(vel / 10).toFixed(2)}</td>`;
+                let medal = "";
+                if (i === 0) medal = "🥇 ";
+                else if (i === 1) medal = "🥈 ";
+                else if (i === 2) medal = "🥉 ";
+                row.innerHTML = `<td>${medal}${name}</td><td>${vel.toFixed(2)}</td>`;
                 tbody.appendChild(row);
             });
+
         }
 
         // Function to spawn/update player indicators
@@ -104,14 +118,15 @@
             // Update max velocity if provided
             if (data.vel !== undefined) {
                 const adjustedVel = data.vel / 10; // Adjust for EMM units
-                const currentMax = maxVelocities.get(data.vel) || 0;
+                const currentMax = maxVelocities.get(data.name) || 0;
+                velocities.set(data.name, new THREE.Vector3(0, 0, data.vel));
+
                 if (adjustedVel > currentMax) {
-                    maxVelocities.set(data.name, currentMax);
+                    maxVelocities.set(data.name, adjustedVel);
                     localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
                     updateLeaderboard();
                 }
             }
-
             if (!playerMeshes.has(data.name)) {
                 const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
                 scene.add(playerMesh);
@@ -248,6 +263,27 @@
                 prevMouseX = event.clientX;
             }
         });
+        document.addEventListener('click', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const meshes = Array.from(playerMeshes.values()).map(p => p.mesh);
+            const intersects = raycaster.intersectObjects(meshes);
+
+            if (intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                for (let [name, player] of playerMeshes.entries()) {
+                    if (player.mesh === clickedMesh) {
+                        followTarget = name;
+                        console.log("Following:", name);
+                    }
+                }
+            } else {
+                followTarget = null; // click empty space cancels follow
+            }
+        });
+
         document.addEventListener('contextmenu', (event) => event.preventDefault());
 
         // Camera setup
@@ -257,19 +293,48 @@
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
-            const speed = moveSpeed * delta;
-            const direction = new THREE.Vector3();
-            camera.getWorldDirection(direction);
-            direction.y = 0;
-            direction.normalize();
-            const right = new THREE.Vector3();
-            right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
-            if (keys.w) camera.position.addScaledVector(direction, speed);
-            if (keys.s) camera.position.addScaledVector(direction, -speed);
-            if (keys.a) camera.position.addScaledVector(right, -speed);
-            if (keys.d) camera.position.addScaledVector(right, speed);
-            if (keys.space) camera.position.y += speed;
-            if (keys.ctrl) camera.position.y -= speed;
+            if (!followTarget) {
+                const speed = moveSpeed * delta;
+                const direction = new THREE.Vector3();
+                camera.getWorldDirection(direction);
+                direction.y = 0;
+                direction.normalize();
+                const right = new THREE.Vector3();
+                right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+
+                if (keys.w) camera.position.addScaledVector(direction, speed);
+                if (keys.s) camera.position.addScaledVector(direction, -speed);
+                if (keys.a) camera.position.addScaledVector(right, -speed);
+                if (keys.d) camera.position.addScaledVector(right, speed);
+                if (keys.space) camera.position.y += speed;
+                if (keys.ctrl) camera.position.y -= speed;
+            }
+            
+            if (followTarget && playerMeshes.has(followTarget)) {
+                const player = playerMeshes.get(followTarget);
+                const targetPos = player.mesh.position;
+
+                // Use player's velocity if available, else use last direction
+                const vel = velocities.get(followTarget) || lastDirection;
+                if (vel.lengthSq() > 0.0001) {
+                    lastDirection.copy(vel).normalize();
+                }
+
+                // Always position camera behind player
+                const followOffset = lastDirection.clone().multiplyScalar(1); // 30 units behind
+                followOffset.y = 45; // height above player
+                const desiredPos = targetPos.clone().add(followOffset);
+
+                // Smoothly move camera
+                camera.position.lerp(desiredPos, 0.15);
+
+                // Look slightly ahead of player
+                const lookAhead = targetPos.clone().add(lastDirection.clone().multiplyScalar(1));
+                camera.lookAt(lookAhead);
+            }
+
+
+
             renderer.render(scene, camera);
         }
 
