@@ -103,9 +103,8 @@
 
             // Update max velocity if provided
             if (data.vel !== undefined) {
-                console.log('Player', data.name, 'vel:', data.vel); // Debug log
                 const adjustedVel = data.vel / 10; // Adjust for EMM units
-                const currentMax = maxVelocities.get(data.name) || 0;
+                const currentMax = maxVelocities.get(data.vel) || 0;
                 if (adjustedVel > currentMax) {
                     maxVelocities.set(data.name, adjustedVel);
                     localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
