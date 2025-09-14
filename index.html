@@ -103,7 +103,7 @@
 
             // Update max velocity if provided
             if (data.vel !== undefined) {
-                const currentMax = maxVelocities.get(data.name) || 0;
+                const currentMax = maxVelocities.get(data.vel) || 0;
                 if (data.vel > currentMax) {
                     maxVelocities.set(data.name, data.vel);
                     localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
