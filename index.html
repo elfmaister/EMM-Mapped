@@ -106,7 +106,7 @@
                 const adjustedVel = data.vel / 10; // Adjust for EMM units
                 const currentMax = maxVelocities.get(data.vel) || 0;
                 if (adjustedVel > currentMax) {
-                    maxVelocities.set(data.name, adjustedVel);
+                    maxVelocities.set(data.name, currentMax);
                     localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
                     updateLeaderboard();
                 }
