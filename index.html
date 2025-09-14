@@ -157,6 +157,25 @@
                 console.error('WebSocket error:', error);
             };
         }
+        // WASD camera controls
+        const moveSpeed = 5; // Adjust speed as needed
+        const keys = { w: false, a: false, s: false, d: false };
+        document.addEventListener('keydown', (event) => {
+            switch (event.key.toLowerCase()) {
+                case 'w': keys.w = true; break;
+                case 'a': keys.a = true; break;
+                case 's': keys.s = true; break;
+                case 'd': keys.d = true; break;
+            }
+        });
+        document.addEventListener('keyup', (event) => {
+            switch (event.key.toLowerCase()) {
+                case 'w': keys.w = false; break;
+                case 'a': keys.a = false; break;
+                case 's': keys.s = false; break;
+                case 'd': keys.d = false; break;
+            }
+        });
         // Camera setup
         camera.position.set(0, 50, 50);
         controls.target.set(0, 15, 0); // Center of the model
@@ -164,6 +183,11 @@
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
+            // Update camera position based on WASD input
+            if (keys.w) camera.position.z -= moveSpeed;
+            if (keys.s) camera.position.z += moveSpeed;
+            if (keys.a) camera.position.x -= moveSpeed;
+            if (keys.d) camera.position.x += moveSpeed;
             controls.update();
             renderer.render(scene, camera);
         }
