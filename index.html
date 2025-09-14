@@ -43,12 +43,11 @@
                 return;
             }
             // Coordinate transformation: GMod (x-forward, y-right, z-up) to Three.js (x-right, y-up, z-forward)
-            // Adjusted offsets to align positions
-            const offsetX = 5988.2418211890655;
-            const offsetY = -7250.666503806252;
-            const offsetZ = -9185.825173242188;
-            const testHeight = 45; // Increased by 20 units for height
-            const scaleFactor = 35; // GMod units to Three.js (1 foot ≈ 16 Hammer units)
+            const offsetX = 6491.132370692662;
+            const offsetY = -7004.441993408203;
+            const offsetZ = -10641.601956481933;
+            const testHeight = 45; // Adjusted for height
+            const scaleFactor = 39.275; // Adjusted for consistent scaling
             const modelScale = 2.5; // Model scale factor
             const gmodX = data.x;
             const gmodY = data.y;
@@ -154,7 +153,7 @@
                 case 'a': keys.a = true; break;
                 case 's': keys.s = true; break;
                 case 'd': keys.d = true; break;
-                case ' ': keys.space = true; break;
+                case ' ': keys.space = true; event.preventDefault(); break;
                 case 'control': keys.ctrl = true; break;
             }
         });
