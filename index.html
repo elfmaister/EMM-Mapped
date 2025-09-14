@@ -43,10 +43,10 @@
                 return;
             }
             // Coordinate transformation: GMod (x-forward, y-right, z-up) to Three.js (x-right, y-up, z-forward)
-            // Offset from aligned spot: GMod (13231.96875, 13231.9921875, -10767.96875) -> Three.js (0, 45, 0)
-            const offsetX = 13231.96875;
-            const offsetY = 13231.9921875;
-            const offsetZ = -10767.96875;
+            // Offset to align GMod (13231.96875, 13231.9921875, -10767.96875) -> Three.js (428.70842633928567, 38.30447823660714, -1289.8169642857144)
+            const offsetX = 7230.05078125;
+            const offsetY = -4825.4453125;
+            const offsetZ = -10660.2314453125;
             const testHeight = 45; // Increased by 20 units for height
             const scaleFactor = 35; // GMod units to Three.js (1 foot ≈ 16 Hammer units)
             const modelScale = 2.5; // Model scale factor
