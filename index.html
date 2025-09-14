@@ -22,7 +22,6 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = false; // Disabled for simplicity
         document.body.appendChild(renderer.domElement);
-
         // OrbitControls for right-click rotation and scroll wheel zoom
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
@@ -37,21 +36,18 @@
             MIDDLE: null // Disable middle-click
         };
         controls.enableKeys = false; // Disable keyboard controls
-
         // Add lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
         scene.add(ambientLight);
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
         directionalLight.position.set(100, 200, 100);
         scene.add(directionalLight);
-
         // Basic floor as fallback
         const floorGeometry = new THREE.PlaneGeometry(20000, 20000);
         const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // Bright green
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
-
         // Function to spawn/update a single realtime player indicator
         let realtimePlayerMesh = null;
         let realtimePlayerLabel = null;
@@ -61,7 +57,6 @@
                 console.warn('Invalid realtime player data:', data);
                 return;
             }
-
             // Coordinate transformation: GMod (x-forward, y-right, z-up) to Three.js (x-right, y-up, z-forward)
             // Offset from aligned spot: GMod (6486.40, -7073.02, -10741.30) -> Three.js (0, 25, 0)
             const offsetX = 6300;
@@ -69,29 +64,23 @@
             const offsetZ = -10790;
             const testHeight = 25; // Target y in Three.js for aligned spot
             const scaleFactor = 35; // GMod units to Three.js (1 foot ≈ 16 Hammer units)
-
             const gmodX = data.x;
             const gmodY = data.y;
             const gmodZ = data.z;
-
             // Adjusted horizontal axes: Remove inversions for correct left-right, forward-back
             const threeX = (gmodX - offsetX) / scaleFactor; // GMod X (forward) -> Three X (right)
             const threeY = ((gmodZ - offsetZ) / scaleFactor) + testHeight; // GMod Z (up) -> Three Y (up)
             const threeZ = -(gmodY - offsetY) / scaleFactor; // GMod Y (right) -> Three Z (forward, flipped)
-
             const posX = threeX;
             const posY = threeY + 1; // Slight offset above surface
             const posZ = threeZ;
-
             console.log('Transformed position:', {posX, posY, posZ});
-
             // Create or update player mesh
             if (!realtimePlayerMesh) {
                 const playerGeometry = new THREE.CylinderGeometry(1, 1, 2, 8); // Radius 1 (2 units wide), height 2
                 const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Bright red
                 realtimePlayerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
                 scene.add(realtimePlayerMesh);
-
                 // Create name label
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
@@ -109,12 +98,10 @@
                 scene.add(realtimePlayerLabel);
                 console.log('Created realtime player mesh and label for:', data.name);
             }
-
             // Update position
             realtimePlayerMesh.position.set(posX, posY, posZ);
             realtimePlayerLabel.position.set(posX, posY + 3, posZ); // Above the cylinder
         }
-
         // Load gm_bigcity.gltf
         const loader = new THREE.GLTFLoader();
         let mapLoaded = false;
@@ -123,7 +110,7 @@
             (gltf) => {
                 console.log('Map loaded successfully');
                 scene.add(gltf.scene);
-                gltf.scene.scale.set(1, 1, 1);
+                gltf.scene.scale.set(2.5, 2.5, 2.5); // Scale up model by 2.5x
                 gltf.scene.position.set(0, 15, 0);
                 mapLoaded = true;
                 document.getElementById('loading').style.display = 'none';
@@ -143,7 +130,6 @@
                 }, 3000);
             }
         );
-
         // Initialize WebSocket for realtime player
         function initRealtimePlayer() {
             const socket = new WebSocket('wss://emm-mapped.onrender.com/data');
@@ -169,26 +155,22 @@
                 console.error('WebSocket error:', error);
             };
         }
-
         // Camera setup
         camera.position.set(0, 50, 50);
         controls.target.set(0, 15, 0); // Center of the model
         camera.lookAt(0, 15, 0); // Ensure initial lookAt
-
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
             renderer.render(scene, camera);
         }
-
         // Resize handler
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
         // Start everything
         animate();
     </script>
