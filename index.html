@@ -8,11 +8,45 @@
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
         #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-family: Arial; z-index: 100; }
+        #leaderboard {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: Arial;
+            z-index: 200;
+            display: none;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #leaderboard h2 { margin: 0 0 10px; text-align: center; }
+        #leaderboard table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #leaderboard th, #leaderboard td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #555;
+        }
     </style>
     <link rel="preload" href="/gm_bigcity/scene.gltf" as="fetch" crossorigin="anonymous">
 </head>
 <body>
     <div id="loading">Loading map...</div>
+    <div id="leaderboard">
+        <h2>Fastest Velocities</h2>
+        <table>
+            <thead>
+                <tr><th>Player</th><th>Max Velocity (u/s)</th></tr>
+            </thead>
+            <tbody id="leaderboard-body"></tbody>
+        </table>
+    </div>
     <script>
         // Set up Three.js scene
         const scene = new THREE.Scene();
@@ -33,6 +67,23 @@
         const playerGeometry = new THREE.CylinderGeometry(1, 1, 2, 8);
         const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
         const playerMeshes = new Map();
+        const maxVelocities = new Map();
+
+        // Load persistent max velocities
+        const savedVelocities = JSON.parse(localStorage.getItem('maxVelocities') || '{}');
+        Object.entries(savedVelocities).forEach(([name, velocity]) => maxVelocities.set(name, velocity));
+
+        // Function to update leaderboard UI
+        function updateLeaderboard() {
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = '';
+            const sortedPlayers = Array.from(maxVelocities.entries()).sort((a, b) => b[1] - a[1]);
+            sortedPlayers.forEach(([name, velocity]) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${name}</td><td>${velocity.toFixed(2)}</td>`;
+                tbody.appendChild(row);
+            });
+        }
 
         // Function to spawn/update player indicators
         function spawnRealtimePlayerIndicator(data) {
@@ -49,6 +100,16 @@
             const posX = baseX * modelScale;
             const posY = baseY * modelScale + testHeight + 1;
             const posZ = baseZ * modelScale;
+
+            // Update max velocity if provided
+            if (data.velocity !== undefined) {
+                const currentMax = maxVelocities.get(data.name) || 0;
+                if (data.velocity > currentMax) {
+                    maxVelocities.set(data.name, data.velocity);
+                    localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
+                    updateLeaderboard();
+                }
+            }
 
             if (!playerMeshes.has(data.name)) {
                 const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
@@ -121,6 +182,7 @@
                                 scene.remove(player.mesh);
                                 scene.remove(player.label);
                                 playerMeshes.delete(name);
+                                updateLeaderboard();
                             }
                         });
                     }
@@ -132,10 +194,10 @@
             socket.onerror = (error) => console.error('WebSocket error:', error);
         }
 
-        // WASD free camera controls with Space and Ctrl
+        // WASD free camera controls with Space, Ctrl, and Tab
         const moveSpeed = 50;
         const rotateSpeed = 0.002;
-        const keys = { w: false, a: false, s: false, d: false, space: false, ctrl: false };
+        const keys = { w: false, a: false, s: false, d: false, space: false, ctrl: false, tab: false };
         let mouseDown = false;
         let prevMouseX = 0;
         const clock = new THREE.Clock();
@@ -148,6 +210,11 @@
                 case 'd': keys.d = true; break;
                 case ' ': keys.space = true; event.preventDefault(); break;
                 case 'control': keys.ctrl = true; break;
+                case 'tab':
+                    keys.tab = true;
+                    document.getElementById('leaderboard').style.display = 'block';
+                    event.preventDefault();
+                    break;
             }
         });
         document.addEventListener('keyup', (event) => {
@@ -158,6 +225,10 @@
                 case 'd': keys.d = false; break;
                 case ' ': keys.space = false; break;
                 case 'control': keys.ctrl = false; break;
+                case 'tab':
+                    keys.tab = false;
+                    document.getElementById('leaderboard').style.display = 'none';
+                    break;
             }
         });
         document.addEventListener('mousedown', (event) => {
