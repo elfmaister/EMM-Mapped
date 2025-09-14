@@ -80,7 +80,7 @@
             const sortedPlayers = Array.from(maxVelocities.entries()).sort((a, b) => b[1] - a[1]);
             sortedPlayers.forEach(([name, vel]) => {
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>${name}</td><td>${vel.toFixed(2)}</td>`;
+                row.innerHTML = `<td>${name}</td><td>${(vel / 10).toFixed(2)}</td>`;
                 tbody.appendChild(row);
             });
         }
@@ -103,9 +103,11 @@
 
             // Update max velocity if provided
             if (data.vel !== undefined) {
-                const currentMax = maxVelocities.get(data.vel) || 0;
-                if (data.vel > currentMax) {
-                    maxVelocities.set(data.name, data.vel);
+                console.log('Player', data.name, 'vel:', data.vel); // Debug log
+                const adjustedVel = data.vel / 10; // Adjust for EMM units
+                const currentMax = maxVelocities.get(data.name) || 0;
+                if (adjustedVel > currentMax) {
+                    maxVelocities.set(data.name, adjustedVel);
                     localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
                     updateLeaderboard();
                 }
