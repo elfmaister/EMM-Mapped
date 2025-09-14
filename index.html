@@ -59,21 +59,23 @@
             }
             // Coordinate transformation: GMod (x-forward, y-right, z-up) to Three.js (x-right, y-up, z-forward)
             // Offset from aligned spot: GMod (6486.40, -7073.02, -10741.30) -> Three.js (0, 25, 0)
-            const offsetX = 6300;
-            const offsetY = -6900;
-            const offsetZ = -10790;
+            const offsetX = 6486.40;
+            const offsetY = -7073.02;
+            const offsetZ = -10741.30;
             const testHeight = 25; // Target y in Three.js for aligned spot
             const scaleFactor = 35; // GMod units to Three.js (1 foot ≈ 16 Hammer units)
+            const modelScale = 2.5; // Model scale factor
             const gmodX = data.x;
             const gmodY = data.y;
             const gmodZ = data.z;
-            // Adjusted horizontal axes: Remove inversions for correct left-right, forward-back
-            const threeX = (gmodX - offsetX) / scaleFactor; // GMod X (forward) -> Three X (right)
-            const threeY = ((gmodZ - offsetZ) / scaleFactor) + testHeight; // GMod Z (up) -> Three Y (up)
-            const threeZ = -(gmodY - offsetY) / scaleFactor; // GMod Y (right) -> Three Z (forward, flipped)
-            const posX = threeX;
-            const posY = threeY + 1; // Slight offset above surface
-            const posZ = threeZ;
+            // Calculate base positions (pre-scale)
+            const baseX = (gmodX - offsetX) / scaleFactor; // GMod X (forward) -> Three X (right)
+            const baseY = (gmodZ - offsetZ) / scaleFactor; // GMod Z (up) -> base Three Y (up)
+            const baseZ = -(gmodY - offsetY) / scaleFactor; // GMod Y (right) -> Three Z (forward, flipped)
+            // Apply model scale
+            const posX = baseX * modelScale;
+            const posY = baseY * modelScale + testHeight + 1; // Slight offset above surface
+            const posZ = baseZ * modelScale;
             console.log('Transformed position:', {posX, posY, posZ});
             // Create or update player mesh
             if (!realtimePlayerMesh) {
