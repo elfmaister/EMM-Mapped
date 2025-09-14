@@ -9,131 +9,118 @@
         canvas { display: block; }
         #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-family: Arial; z-index: 100; }
     </style>
+    <link rel="preload" href="/gm_bigcity/scene.gltf" as="fetch" crossorigin="anonymous">
 </head>
 <body>
     <div id="loading">Loading map...</div>
     <script>
         // Set up Three.js scene
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+        scene.background = new THREE.Color(0x87CEEB);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = false; // Disabled for simplicity
+        renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
+
         // Add lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
-        scene.add(ambientLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 1.0));
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
         directionalLight.position.set(100, 200, 100);
         scene.add(directionalLight);
-        // Function to spawn/update player indicators
+
+        // Shared geometry and material for players
+        const playerGeometry = new THREE.CylinderGeometry(1, 1, 2, 8);
+        const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
         const playerMeshes = new Map();
+
+        // Function to spawn/update player indicators
         function spawnRealtimePlayerIndicator(data) {
-            console.log('Spawning/updating player with data:', data);
-            if (!data || !data.name || data.x === undefined || data.y === undefined || data.z === undefined) {
-                console.warn('Invalid player data:', data);
-                return;
-            }
-            // Coordinate transformation: GMod (x-forward, y-right, z-up) to Three.js (x-right, y-up, z-forward)
-            const offsetX = 6491.132370692662;
-            const offsetY = -7004.441993408203;
-            const offsetZ = -10641.601956481933;
-            const testHeight = 45; // Adjusted for height
-            const scaleFactor = 39.275; // Adjusted for consistent scaling
-            const modelScale = 2.5; // Model scale factor
-            const gmodX = data.x;
-            const gmodY = data.y;
-            const gmodZ = data.z;
-            // Calculate base positions (pre-scale)
-            const baseX = (gmodX - offsetX) / scaleFactor; // GMod X (forward) -> Three X (right)
-            const baseY = (gmodZ - offsetZ) / scaleFactor; // GMod Z (up) -> base Three Y (up)
-            const baseZ = -(gmodY - offsetY) / scaleFactor; // GMod Y (right) -> Three Z (forward, flipped)
-            // Apply model scale
+            if (!data || !data.name || data.x === undefined || data.y === undefined || data.z === undefined) return;
+            const offsetX = 6498.061;
+            const offsetY = -7027.718;
+            const offsetZ = -10647.092;
+            const testHeight = 45;
+            const scaleFactor = 39.269;
+            const modelScale = 2.5;
+            const baseX = (data.x - offsetX) / scaleFactor;
+            const baseY = (data.z - offsetZ) / scaleFactor;
+            const baseZ = -(data.y - offsetY) / scaleFactor;
             const posX = baseX * modelScale;
-            const posY = baseY * modelScale + testHeight + 1; // Slight offset above surface
+            const posY = baseY * modelScale + testHeight + 1;
             const posZ = baseZ * modelScale;
-            console.log('Transformed position:', {posX, posY, posZ});
-            // Create or update player mesh
+
             if (!playerMeshes.has(data.name)) {
-                const playerGeometry = new THREE.CylinderGeometry(1, 1, 2, 8); // Radius 1 (2 units wide), height 2
-                const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Bright red
                 const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
                 scene.add(playerMesh);
-                // Create name label
                 const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
                 canvas.width = 256;
                 canvas.height = 64;
+                const context = canvas.getContext('2d');
                 context.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 context.fillRect(0, 0, canvas.width, canvas.height);
                 context.fillStyle = 'white';
                 context.font = 'bold 20px Arial';
                 context.fillText(data.name, 10, 35);
-                const texture = new THREE.CanvasTexture(canvas);
-                const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
-                const playerLabel = new THREE.Sprite(spriteMaterial);
-                playerLabel.scale.set(20, 5, 1); // Reasonable label size
+                const playerLabel = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+                playerLabel.scale.set(20, 5, 1);
                 scene.add(playerLabel);
                 playerMeshes.set(data.name, { mesh: playerMesh, label: playerLabel });
-                console.log('Created player mesh and label for:', data.name);
             }
-            // Update position
             const player = playerMeshes.get(data.name);
             player.mesh.position.set(posX, posY, posZ);
-            player.label.position.set(posX, posY + 3, posZ); // Above the cylinder
+            player.label.position.set(posX, posY + 3, posZ);
         }
+
         // Load gm_bigcity.gltf
         const loader = new THREE.GLTFLoader();
-        let mapLoaded = false;
-        loader.load(
-            '/gm_bigcity/scene.gltf',
-            (gltf) => {
-                console.log('Map loaded successfully');
+        async function loadMap() {
+            try {
+                const gltf = await new Promise((resolve, reject) => {
+                    loader.load(
+                        '/gm_bigcity/scene.gltf',
+                        resolve,
+                        (progress) => {
+                            const percent = (progress.loaded / progress.total * 100).toFixed(2);
+                            document.getElementById('loading').innerText = `Loading map... ${percent}%`;
+                        },
+                        reject
+                    );
+                });
                 scene.add(gltf.scene);
-                gltf.scene.scale.set(2.5, 2.5, 2.5); // Scale up model by 2.5x
+                gltf.scene.scale.set(2.5, 2.5, 2.5);
                 gltf.scene.position.set(0, 15, 0);
-                mapLoaded = true;
                 document.getElementById('loading').style.display = 'none';
-                // Initialize realtime player after map loads
                 initRealtimePlayer();
-            },
-            (progress) => {
-                console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
-            },
-            (error) => {
+            } catch (error) {
                 console.error('Error loading GLTF:', error);
-                document.getElementById('loading').innerHTML = 'Failed to load map.';
+                document.getElementById('loading').innerText = 'Failed to load map.';
                 setTimeout(() => {
                     document.getElementById('loading').style.display = 'none';
-                    // Initialize realtime player even if map fails
                     initRealtimePlayer();
                 }, 3000);
             }
-        );
+        }
+        loadMap();
+
         // Initialize WebSocket for realtime players
         function initRealtimePlayer() {
             const socket = new WebSocket('wss://emm-mapped.onrender.com/data');
-            socket.onopen = () => {
-                console.log('WebSocket connected for realtime players');
-            };
+            socket.onopen = () => console.log('WebSocket connected');
             socket.onmessage = (event) => {
                 try {
                     const message = JSON.parse(event.data);
                     if (message.players) {
-                        // Update all players
                         const currentPlayers = new Set();
                         message.players.forEach(playerData => {
                             spawnRealtimePlayerIndicator(playerData);
                             currentPlayers.add(playerData.name);
                         });
-                        // Remove disconnected players
                         playerMeshes.forEach((player, name) => {
                             if (!currentPlayers.has(name)) {
                                 scene.remove(player.mesh);
                                 scene.remove(player.label);
                                 playerMeshes.delete(name);
-                                console.log('Removed disconnected player:', name);
                             }
                         });
                     }
@@ -141,19 +128,18 @@
                     console.error('Error parsing WebSocket message:', e);
                 }
             };
-            socket.onclose = () => {
-                console.log('WebSocket disconnected');
-            };
-            socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
+            socket.onclose = () => console.log('WebSocket disconnected');
+            socket.onerror = (error) => console.error('WebSocket error:', error);
         }
+
         // WASD free camera controls with Space and Ctrl
-        const moveSpeed = 5;
+        const moveSpeed = 50;
         const rotateSpeed = 0.002;
         const keys = { w: false, a: false, s: false, d: false, space: false, ctrl: false };
         let mouseDown = false;
         let prevMouseX = 0;
+        const clock = new THREE.Clock();
+
         document.addEventListener('keydown', (event) => {
             switch (event.key.toLowerCase()) {
                 case 'w': keys.w = true; break;
@@ -175,7 +161,7 @@
             }
         });
         document.addEventListener('mousedown', (event) => {
-            if (event.button === 2) { // Right-click
+            if (event.button === 2) {
                 mouseDown = true;
                 prevMouseX = event.clientX;
             }
@@ -190,35 +176,39 @@
                 prevMouseX = event.clientX;
             }
         });
-        // Prevent right-click context menu
         document.addEventListener('contextmenu', (event) => event.preventDefault());
+
         // Camera setup
         camera.position.set(0, 50, 50);
+
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
-            // Update camera position based on WASD, Space, and Ctrl input
+            const delta = clock.getDelta();
+            const speed = moveSpeed * delta;
             const direction = new THREE.Vector3();
             camera.getWorldDirection(direction);
-            direction.y = 0; // Keep horizontal movement
+            direction.y = 0;
             direction.normalize();
             const right = new THREE.Vector3();
             right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
-            if (keys.w) camera.position.addScaledVector(direction, moveSpeed);
-            if (keys.s) camera.position.addScaledVector(direction, -moveSpeed);
-            if (keys.a) camera.position.addScaledVector(right, -moveSpeed);
-            if (keys.d) camera.position.addScaledVector(right, moveSpeed);
-            if (keys.space) camera.position.y += moveSpeed;
-            if (keys.ctrl) camera.position.y -= moveSpeed;
+            if (keys.w) camera.position.addScaledVector(direction, speed);
+            if (keys.s) camera.position.addScaledVector(direction, -speed);
+            if (keys.a) camera.position.addScaledVector(right, -speed);
+            if (keys.d) camera.position.addScaledVector(right, speed);
+            if (keys.space) camera.position.y += speed;
+            if (keys.ctrl) camera.position.y -= speed;
             renderer.render(scene, camera);
         }
+
         // Resize handler
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        // Start everything
+
+        // Start animation
         animate();
     </script>
 </body>
