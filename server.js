@@ -37,7 +37,7 @@ app.use((req, res, next) => {
     next();
 });
 
-let playerData = [];
+const players = new Map();
 
 // Handle WebSocket upgrade specifically on /data
 server.on('upgrade', (request, socket, head) => {
@@ -63,11 +63,11 @@ app.post('/data', (req, res) => {
             console.error('Invalid request: Missing fields', JSON.stringify(req.body, null, 2));
             return res.status(400).send('Missing required fields');
         }
-        playerData = [data];
-        console.log('Processed:', JSON.stringify(playerData, null, 2));
+        players.set(data.name, data);
+        console.log('Processed players:', JSON.stringify(Array.from(players.values()), null, 2));
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({ players: playerData }));
+                client.send(JSON.stringify({ players: Array.from(players.values()) }));
             }
         });
         res.sendStatus(200);
@@ -78,7 +78,7 @@ app.post('/data', (req, res) => {
 });
 
 app.get('/data', (req, res) => {
-    res.json(playerData);
+    res.json({ players: Array.from(players.values()) });
 });
 
 // Serve index.html at the root path
@@ -98,7 +98,7 @@ app.use((req, res, next) => {
 
 wss.on('connection', (ws) => {
     console.log('WebSocket client connected to /data');
-    ws.send(JSON.stringify({ players: playerData }));
+    ws.send(JSON.stringify({ players: Array.from(players.values()) }));
     ws.on('close', () => {
         console.log('WebSocket client disconnected');
     });
