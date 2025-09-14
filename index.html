@@ -4,7 +4,6 @@
     <title>EMM 3D Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -22,20 +21,6 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = false; // Disabled for simplicity
         document.body.appendChild(renderer.domElement);
-        // OrbitControls for right-click rotation and scroll wheel zoom
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.screenSpacePanning = false;
-        controls.minDistance = 10;
-        controls.maxDistance = 5000;
-        controls.maxPolarAngle = Math.PI / 2; // Restrict to top-down view
-        controls.mouseButtons = {
-            LEFT: null, // Disable left-click
-            RIGHT: THREE.MOUSE.ROTATE, // Right-click to rotate
-            MIDDLE: null // Disable middle-click
-        };
-        controls.enableKeys = false; // Disable keyboard controls
         // Add lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
         scene.add(ambientLight);
@@ -157,9 +142,12 @@
                 console.error('WebSocket error:', error);
             };
         }
-        // WASD camera controls
-        const moveSpeed = 5; // Adjust speed as needed
+        // WASD free camera controls
+        const moveSpeed = 5;
+        const rotateSpeed = 0.002;
         const keys = { w: false, a: false, s: false, d: false };
+        let mouseDown = false;
+        let prevMouseX = 0;
         document.addEventListener('keydown', (event) => {
             switch (event.key.toLowerCase()) {
                 case 'w': keys.w = true; break;
@@ -176,19 +164,40 @@
                 case 'd': keys.d = false; break;
             }
         });
+        document.addEventListener('mousedown', (event) => {
+            if (event.button === 2) { // Right-click
+                mouseDown = true;
+                prevMouseX = event.clientX;
+            }
+        });
+        document.addEventListener('mouseup', (event) => {
+            if (event.button === 2) mouseDown = false;
+        });
+        document.addEventListener('mousemove', (event) => {
+            if (mouseDown) {
+                const deltaX = event.clientX - prevMouseX;
+                camera.rotation.y -= deltaX * rotateSpeed;
+                prevMouseX = event.clientX;
+            }
+        });
+        // Prevent right-click context menu
+        document.addEventListener('contextmenu', (event) => event.preventDefault());
         // Camera setup
         camera.position.set(0, 50, 50);
-        controls.target.set(0, 15, 0); // Center of the model
-        camera.lookAt(0, 15, 0); // Ensure initial lookAt
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
             // Update camera position based on WASD input
-            if (keys.w) camera.position.z -= moveSpeed;
-            if (keys.s) camera.position.z += moveSpeed;
-            if (keys.a) camera.position.x -= moveSpeed;
-            if (keys.d) camera.position.x += moveSpeed;
-            controls.update();
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            direction.y = 0; // Keep movement horizontal
+            direction.normalize();
+            const right = new THREE.Vector3();
+            right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+            if (keys.w) camera.position.addScaledVector(direction, moveSpeed);
+            if (keys.s) camera.position.addScaledVector(direction, -moveSpeed);
+            if (keys.a) camera.position.addScaledVector(right, -moveSpeed);
+            if (keys.d) camera.position.addScaledVector(right, moveSpeed);
             renderer.render(scene, camera);
         }
         // Resize handler
