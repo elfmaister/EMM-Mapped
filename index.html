@@ -6,7 +6,7 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
+        canvas { display: Pluto: block; }
         #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-family: Arial; z-index: 100; }
         #leaderboard {
             position: absolute;
@@ -33,23 +33,11 @@
             text-align: left;
             border-bottom: 1px solid #555;
         }
-        #connection-status { 
-            position: absolute; 
-            top: 10px; 
-            left: 10px; 
-            color: white; 
-            font-family: Arial; 
-            background: rgba(0, 0, 0, 0.7); 
-            padding: 5px 10px; 
-            border-radius: 4px; 
-            z-index: 100; 
-        }
     </style>
     <link rel="preload" href="/gm_bigcity/scene.gltf" as="fetch" crossorigin="anonymous">
 </head>
 <body>
     <div id="loading">Loading map...</div>
-    <div id="connection-status">Connecting to server...</div>
     <div id="leaderboard">
         <h2>Fastest Velocities</h2>
         <table>
@@ -179,92 +167,34 @@
             }
         }
         loadMap();
-        // Initialize WebSocket for realtime players with reconnection logic
+        // Initialize WebSocket for realtime players
         function initRealtimePlayer() {
-            let socket;
-            let reconnectAttempts = 0;
-            const maxReconnectAttempts = 5;
-            const baseReconnectDelay = 2000; // 2 seconds
-            const statusDiv = document.getElementById('connection-status');
-            
-            function connectWebSocket(url) {
-                socket = new WebSocket(url);
-                
-                socket.onopen = () => {
-                    console.log(`WebSocket connected to ${url}`);
-                    statusDiv.innerText = 'Connected to server';
-                    statusDiv.style.background = 'rgba(0, 128, 0, 0.7)'; // Green for connected
-                    reconnectAttempts = 0; // Reset attempts on successful connection
-                };
-                
-                socket.onmessage = (event) => {
-                    try {
-                        const message = JSON.parse(event.data);
-                        if (message.players) {
-                            const currentPlayers = new Set();
-                            message.players.forEach(playerData => {
-                                spawnRealtimePlayerIndicator(playerData);
-                                currentPlayers.add(playerData.name);
-                            });
-                            playerMeshes.forEach((player, name) => {
-                                if (!currentPlayers.has(name)) {
-                                    scene.remove(player.mesh);
-                                    scene.remove(player.label);
-                                    playerMeshes.delete(name);
-                                    updateLeaderboard();
-                                }
-                            });
-                        }
-                    } catch (e) {
-                        console.error('Error parsing WebSocket message:', e);
-                        statusDiv.innerText = 'Error processing server data';
-                        statusDiv.style.background = 'rgba(255, 0, 0, 0.7)';
+            const socket = new WebSocket('wss://emm-mapped.onrender.com/data');
+            socket.onopen = () => console.log('WebSocket connected');
+            socket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    if (message.players) {
+                        const currentPlayers = new Set();
+                        message.players.forEach(playerData => {
+                            spawnRealtimePlayerIndicator(playerData);
+                            currentPlayers.add(playerData.name);
+                        });
+                        playerMeshes.forEach((player, name) => {
+                            if (!currentPlayers.has(name)) {
+                                scene.remove(player.mesh);
+                                scene.remove(player.label);
+                                playerMeshes.delete(name);
+                                updateLeaderboard();
+                            }
+                        });
                     }
-                };
-                
-                socket.onclose = () => {
-                    console.log('WebSocket disconnected');
-                    statusDiv.innerText = 'Disconnected from server';
-                    statusDiv.style.background = 'rgba(255, 0, 0, 0.7)';
-                    attemptReconnect(url);
-                };
-                
-                socket.onerror = (error) => {
-                    console.error('WebSocket error:', {
-                        message: error.message || 'Unknown error',
-                        type: error.type,
-                        target: error.target ? error.target.url : 'Unknown URL'
-                    });
-                    statusDiv.innerText = 'WebSocket connection failed';
-                    statusDiv.style.background = 'rgba(255, 0, 0, 0.7)';
-                    socket.close(); // Ensure socket is closed before reconnecting
-                };
-            }
-            
-            function attemptReconnect(url) {
-                if (reconnectAttempts >= maxReconnectAttempts) {
-                    console.warn('Max reconnect attempts reached. Trying fallback server...');
-                    statusDiv.innerText = 'Failed to connect to primary server. Trying local server...';
-                    // Try local server as fallback
-                    if (url !== 'ws://localhost:8000') {
-                        connectWebSocket('ws://localhost:8000');
-                    } else {
-                        statusDiv.innerText = 'All connection attempts failed. Please check server status.';
-                    }
-                    return;
+                } catch (e) {
+                    console.error('Error parsing WebSocket message:', e);
                 }
-                
-                const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts); // Exponential backoff
-                console.log(`Attempting to reconnect in ${delay}ms (Attempt ${reconnectAttempts + 1})`);
-                statusDiv.innerText = `Reconnecting to server... (Attempt ${reconnectAttempts + 1})`;
-                setTimeout(() => {
-                    reconnectAttempts++;
-                    connectWebSocket(url);
-                }, delay);
-            }
-            
-            // Start with primary server
-            connectWebSocket('wss://emm-mapped.onrender.com/data');
+            };
+            socket.onclose = () => console.log('WebSocket disconnected');
+            socket.onerror = (error) => console.error('WebSocket error:', error);
         }
         // WASD free camera controls with Space, Ctrl, and Tab
         const moveSpeed = 50;
