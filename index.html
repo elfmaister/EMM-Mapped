@@ -6,7 +6,7 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
-        canvas { display: Pluto: block; }
+        canvas { display: block; }
         #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-family: Arial; z-index: 100; }
         #leaderboard {
             position: absolute;
@@ -156,17 +156,14 @@
                 gltf.scene.scale.set(2.5, 2.5, 2.5);
                 gltf.scene.position.set(0, 15, 0);
                 document.getElementById('loading').style.display = 'none';
-                initRealtimePlayer();
             } catch (error) {
                 console.error('Error loading GLTF:', error);
                 document.getElementById('loading').innerText = 'Failed to load map.';
                 setTimeout(() => {
                     document.getElementById('loading').style.display = 'none';
-                    initRealtimePlayer();
                 }, 3000);
             }
         }
-        loadMap();
         // Initialize WebSocket for realtime players
         function initRealtimePlayer() {
             const socket = new WebSocket('wss://emm-mapped.onrender.com/data');
@@ -196,6 +193,9 @@
             socket.onclose = () => console.log('WebSocket disconnected');
             socket.onerror = (error) => console.error('WebSocket error:', error);
         }
+        // Start WebSocket and map loading in parallel
+        initRealtimePlayer();
+        loadMap();
         // WASD free camera controls with Space, Ctrl, and Tab
         const moveSpeed = 50;
         const rotateSpeed = 0.002;
