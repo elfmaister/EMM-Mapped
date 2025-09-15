@@ -105,11 +105,11 @@
             const posX = baseX * modelScale;
             const posY = baseY * modelScale + testHeight + 1;
             const posZ = baseZ * modelScale;
+            const targetPos = new THREE.Vector3(posX, posY, posZ);
             // Update max velocity if provided
             if (data.vel !== undefined) {
                 const adjustedVel = data.vel / 10; // Adjust for EMM units
                 const currentMax = maxVelocities.get(data.name) || 0;
-                velocities.set(data.name, new THREE.Vector3(0, 0, data.vel));
                 if (adjustedVel > currentMax) {
                     maxVelocities.set(data.name, adjustedVel);
                     localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
@@ -131,11 +131,18 @@
                 const playerLabel = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
                 playerLabel.scale.set(20, 5, 1);
                 scene.add(playerLabel);
-                playerMeshes.set(data.name, { mesh: playerMesh, label: playerLabel });
+                playerMeshes.set(data.name, { 
+                    mesh: playerMesh, 
+                    label: playerLabel,
+                    targetPos: targetPos.clone(),
+                    currentPos: targetPos.clone(),
+                    prevPos: targetPos.clone(),
+                    velocity: new THREE.Vector3()
+                });
+            } else {
+                const player = playerMeshes.get(data.name);
+                player.targetPos.copy(targetPos);
             }
-            const player = playerMeshes.get(data.name);
-            player.mesh.position.set(posX, posY, posZ);
-            player.label.position.set(posX, posY + 3, posZ);
         }
         // Load gm_bigcity.gltf
         const loader = new THREE.GLTFLoader();
@@ -273,6 +280,19 @@
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
+            // Update all player positions with interpolation
+            playerMeshes.forEach((player, name) => {
+                player.prevPos.copy(player.currentPos);
+                player.currentPos.lerp(player.targetPos, 0.15); // Smooth interpolation factor
+                player.mesh.position.copy(player.currentPos);
+                player.label.position.copy(player.currentPos).add(new THREE.Vector3(0, 3, 0));
+                // Compute velocity direction from position delta
+                const deltaPos = new THREE.Vector3().subVectors(player.currentPos, player.prevPos);
+                if (deltaPos.lengthSq() > 0.0001) {
+                    player.velocity.copy(deltaPos).divideScalar(delta); // Velocity in units per second
+                    velocities.set(name, player.velocity.clone());
+                }
+            });
             if (!followTarget) {
                 const speed = moveSpeed * delta;
                 const direction = new THREE.Vector3();
@@ -290,27 +310,27 @@
             }
             if (followTarget && playerMeshes.has(followTarget)) {
                 const player = playerMeshes.get(followTarget);
-                const targetPos = player.mesh.position;
-                // Use player's velocity if available, else use last direction
-                const vel = velocities.get(followTarget) || lastDirection;
+                const targetPos = player.currentPos; // Use interpolated position
+                // Use stored velocity for direction
+                const velocity = velocities.get(followTarget) || lastDirection;
                 let direction = lastDirection;
-                if (vel.lengthSq() > 0.0001) {
-                    direction = vel.clone().normalize();
+                if (velocity.lengthSq() > 0.0001) {
+                    direction = velocity.clone().normalize();
                     lastDirection.copy(direction);
                 }
                 // Third-person camera: Position 30 units behind, 15 units above
                 const followOffset = direction.clone().multiplyScalar(-30); // Negative for behind
                 followOffset.y = 15; // Height above player
                 const desiredPos = targetPos.clone().add(followOffset);
-                // Smoothly move camera
-                camera.position.lerp(desiredPos, 0.1 * (60 * delta)); // Adjusted for frame rate
+                // Smoother camera movement with lower lerp factor
+                camera.position.lerp(desiredPos, 0.05 * (60 * delta)); // Reduced for smoother follow
                 // Look at point slightly ahead of player
-                const lookAheadDistance = Math.min(vel.length() * 0.1, 10); // Dynamic look-ahead
-                const lookAtPos = targetPos.clone().add(direction.multiplyScalar(lookAheadDistance));
+                const lookAheadDistance = Math.min(velocity.length() * 0.1, 10); // Use actual speed
+                const lookAtPos = targetPos.clone().add(direction.clone().multiplyScalar(lookAheadDistance));
                 lookAtPos.y += 2; // Slight elevation for natural view
                 camera.lookAt(lookAtPos);
-                // Apply slight downward tilt
-                camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, -0.35, 0.1); // ~ -20 degrees
+                // Apply slight downward tilt with smoothing
+                camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, -0.35, 0.05); // Smoother tilt
             }
             renderer.render(scene, camera);
         }
