@@ -7,48 +7,49 @@
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
-        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-family: Arial; z-index: 100; }
-        #leaderboard {
-            position: absolute;
-            top: 50%;
-            left: 50%;
+        #loading {
+            position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            font-family: Arial;
-            z-index: 200;
-            display: none;
-            max-height: 80vh;
-            overflow-y: auto;
+            color: white; font-family: Arial; z-index: 100;
+        }
+        #leaderboard {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); color: white;
+            padding: 20px; border-radius: 8px; font-family: Arial;
+            z-index: 200; display: none;
+            max-height: 80vh; overflow-y: auto;
         }
         #leaderboard h2 { margin: 0 0 10px; text-align: center; }
-        #leaderboard table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+        #leaderboard table { width: 100%; border-collapse: collapse; }
         #leaderboard th, #leaderboard td {
-            padding: 8px;
-            text-align: left;
-            border-bottom: 1px solid #555;
+            padding: 8px; text-align: left; border-bottom: 1px solid #555;
         }
     </style>
-    <link rel="preload" href="/gm_bigcity/scene.gltf" as="fetch" crossorigin="anonymous">
 </head>
 <body>
     <div id="loading">Loading map...</div>
     <div id="leaderboard">
         <h2>Fastest Velocities</h2>
         <table>
-            <thead>
-                <tr><th>Player</th><th>Max Velocity (u/s)</th></tr>
-            </thead>
+            <thead><tr><th>Player</th><th>Max Velocity (u/s)</th></tr></thead>
             <tbody id="leaderboard-body"></tbody>
         </table>
     </div>
+
     <script>
-        // Set up Three.js scene
+        // Shared transform constants
+        const offsetX = 6498.061;
+        const offsetY = -7027.718;
+        const offsetZ = -10647.092;
+        const testHeight = 45;
+        const scaleFactor = 39.269;
+        const modelScale = 2.5;
+
+        const latestPlayerData = {};
+        let yaw = 0, pitch = 0;
+
+        // Scene setup
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
@@ -57,14 +58,14 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        // Add lighting
+        // Lights
         scene.add(new THREE.AmbientLight(0xffffff, 1.0));
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        directionalLight.position.set(100, 200, 100);
-        scene.add(directionalLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(100,200,100);
+        scene.add(dirLight);
 
-        // Shared geometry and material for players
-        const playerGeometry = new THREE.CylinderGeometry(1, 1, 2, 8);
+        // Players
+        const playerGeometry = new THREE.CylinderGeometry(1,1,2,8);
         const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
         const playerMeshes = new Map();
         const maxVelocities = new Map();
@@ -72,42 +73,26 @@
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         let followTarget = null;
-        let lastDirection = new THREE.Vector3(0, 0, 1);
 
-        
-        const velocities = new Map();
-
-        // Load persistent max velocities
-        const savedVelocities = JSON.parse(localStorage.getItem('maxVelocities') || '{}');
-        Object.entries(savedVelocities).forEach(([name, vel]) => maxVelocities.set(name, vel));
-
-        // Function to update leaderboard UI
+        // Leaderboard UI
         function updateLeaderboard() {
-            const tbody = document.getElementById('leaderboard-body');
-            tbody.innerHTML = '';
-            const sortedPlayers = Array.from(maxVelocities.entries()).sort((a, b) => b[1] - a[1]);
-            sortedPlayers.forEach(([name, vel], i) => {
-                if (name === "unconnected") return;
-                const row = document.createElement('tr');
-                let medal = "";
-                if (i === 0) medal = "🥇 ";
-                else if (i === 1) medal = "🥈 ";
-                else if (i === 2) medal = "🥉 ";
+            const tbody = document.getElementById("leaderboard-body");
+            tbody.innerHTML = "";
+            const sorted = Array.from(maxVelocities.entries()).sort((a,b)=>b[1]-a[1]);
+            sorted.forEach(([name,vel],i)=>{
+                if(name==="unconnected") return;
+                let medal = i===0?"🥇 ":i===1?"🥈 ":i===2?"🥉 ":"";
+                const row = document.createElement("tr");
                 row.innerHTML = `<td>${medal}${name}</td><td>${vel.toFixed(2)}</td>`;
                 tbody.appendChild(row);
             });
-
         }
 
-        // Function to spawn/update player indicators
+        // Spawn or update a player
         function spawnRealtimePlayerIndicator(data) {
-            if (!data || !data.name || data.x === undefined || data.y === undefined || data.z === undefined) return;
-            const offsetX = 6498.061;
-            const offsetY = -7027.718;
-            const offsetZ = -10647.092;
-            const testHeight = 45;
-            const scaleFactor = 39.269;
-            const modelScale = 2.5;
+            if (!data || !data.name) return;
+
+            // Transform GMod → Three.js
             const baseX = (data.x - offsetX) / scaleFactor;
             const baseY = (data.z - offsetZ) / scaleFactor;
             const baseZ = -(data.y - offsetY) / scaleFactor;
@@ -115,238 +100,203 @@
             const posY = baseY * modelScale + testHeight + 1;
             const posZ = baseZ * modelScale;
 
-            // Update max velocity if provided
+            // Track max velocity
             if (data.vel !== undefined) {
-                const adjustedVel = data.vel / 10; // Adjust for EMM units
+                const adjustedVel = data.vel / 10;
                 const currentMax = maxVelocities.get(data.name) || 0;
-                velocities.set(data.name, new THREE.Vector3(0, 0, data.vel));
-
                 if (adjustedVel > currentMax) {
                     maxVelocities.set(data.name, adjustedVel);
-                    localStorage.setItem('maxVelocities', JSON.stringify(Object.fromEntries(maxVelocities)));
+                    localStorage.setItem("maxVelocities", JSON.stringify(Object.fromEntries(maxVelocities)));
                     updateLeaderboard();
                 }
             }
+
             if (!playerMeshes.has(data.name)) {
-                const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
-                scene.add(playerMesh);
-                const canvas = document.createElement('canvas');
-                canvas.width = 256;
-                canvas.height = 64;
-                const context = canvas.getContext('2d');
-                context.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                context.fillRect(0, 0, canvas.width, canvas.height);
-                context.fillStyle = 'white';
-                context.font = 'bold 20px Arial';
-                context.fillText(data.name, 10, 35);
-                const playerLabel = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-                playerLabel.scale.set(20, 5, 1);
-                scene.add(playerLabel);
-                playerMeshes.set(data.name, { mesh: playerMesh, label: playerLabel });
+                const mesh = new THREE.Mesh(playerGeometry, playerMaterial);
+                scene.add(mesh);
+
+                const canvas = document.createElement("canvas");
+                canvas.width = 256; canvas.height = 64;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "rgba(0,0,0,0.7)";
+                ctx.fillRect(0,0,canvas.width,canvas.height);
+                ctx.fillStyle="white";
+                ctx.font="bold 20px Arial";
+                ctx.fillText(data.name,10,35);
+                const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+                label.scale.set(20,5,1);
+                scene.add(label);
+
+                playerMeshes.set(data.name, { mesh, label, targetPos: new THREE.Vector3() });
             }
+
             const player = playerMeshes.get(data.name);
-            player.mesh.position.set(posX, posY, posZ);
-            player.label.position.set(posX, posY + 3, posZ);
+            player.targetPos.set(posX,posY,posZ);
+            player.label.position.set(posX,posY+3,posZ);
+
+            // Save data globally
+            latestPlayerData[data.name] = data;
         }
 
-        // Load gm_bigcity.gltf
+        // Load map
         const loader = new THREE.GLTFLoader();
         async function loadMap() {
             try {
-                const gltf = await new Promise((resolve, reject) => {
-                    loader.load(
-                        '/gm_bigcity/scene.gltf',
-                        resolve,
-                        (progress) => {
-                            const percent = (progress.loaded / progress.total * 100).toFixed(2);
-                            document.getElementById('loading').innerText = `Loading map... ${percent}%`;
-                        },
-                        reject
-                    );
+                const gltf = await new Promise((res,rej)=>{
+                    loader.load("/gm_bigcity/scene.gltf",res,(p)=>{
+                        const percent = (p.loaded/p.total*100).toFixed(2);
+                        document.getElementById("loading").innerText=`Loading map... ${percent}%`;
+                    },rej);
                 });
                 scene.add(gltf.scene);
-                gltf.scene.scale.set(2.5, 2.5, 2.5);
-                gltf.scene.position.set(0, 15, 0);
-                document.getElementById('loading').style.display = 'none';
+                gltf.scene.scale.set(2.5,2.5,2.5);
+                gltf.scene.position.set(0,15,0);
+                document.getElementById("loading").style.display="none";
                 initRealtimePlayer();
-            } catch (error) {
-                console.error('Error loading GLTF:', error);
-                document.getElementById('loading').innerText = 'Failed to load map.';
-                setTimeout(() => {
-                    document.getElementById('loading').style.display = 'none';
-                    initRealtimePlayer();
-                }, 3000);
+            } catch(err) {
+                console.error("Error loading map:",err);
+                document.getElementById("loading").innerText="Failed to load map.";
+                setTimeout(()=>{document.getElementById("loading").style.display="none";initRealtimePlayer();},3000);
             }
         }
         loadMap();
 
-        // Initialize WebSocket for realtime players
+        // WebSocket connection
         function initRealtimePlayer() {
-            const socket = new WebSocket('wss://emm-mapped.onrender.com/data');
-            socket.onopen = () => console.log('WebSocket connected');
-            socket.onmessage = (event) => {
+            const socket = new WebSocket("wss://emm-mapped.onrender.com/data");
+            socket.onopen=()=>console.log("WebSocket connected");
+            socket.onmessage=(event)=>{
                 try {
-                    const message = JSON.parse(event.data);
-                    if (message.players) {
-                        const currentPlayers = new Set();
-                        message.players.forEach(playerData => {
-                            spawnRealtimePlayerIndicator(playerData);
-                            currentPlayers.add(playerData.name);
+                    const msg = JSON.parse(event.data);
+                    if (msg.players) {
+                        const current = new Set();
+                        msg.players.forEach(p=>{
+                            spawnRealtimePlayerIndicator(p);
+                            current.add(p.name);
                         });
-                        playerMeshes.forEach((player, name) => {
-                            if (!currentPlayers.has(name)) {
-                                scene.remove(player.mesh);
-                                scene.remove(player.label);
+                        playerMeshes.forEach((pl,name)=>{
+                            if (!current.has(name)) {
+                                scene.remove(pl.mesh); scene.remove(pl.label);
                                 playerMeshes.delete(name);
                                 updateLeaderboard();
                             }
                         });
                     }
-                } catch (e) {
-                    console.error('Error parsing WebSocket message:', e);
-                }
+                } catch(e){console.error("Bad WS msg:",e);}
             };
-            socket.onclose = () => console.log('WebSocket disconnected');
-            socket.onerror = (error) => console.error('WebSocket error:', error);
+            socket.onclose=()=>console.log("WebSocket closed");
+            socket.onerror=(e)=>console.error("WebSocket error:",e);
         }
 
-        // WASD free camera controls with Space, Ctrl, and Tab
+        // Freecam controls
         const moveSpeed = 50;
-        const rotateSpeed = 0.002;
-        const keys = { w: false, a: false, s: false, d: false, space: false, ctrl: false, tab: false };
-        let mouseDown = false;
-        let prevMouseX = 0;
+        const keys = {w:0,a:0,s:0,d:0,space:0,ctrl:0,tab:0};
         const clock = new THREE.Clock();
 
-        document.addEventListener('keydown', (event) => {
-            switch (event.key.toLowerCase()) {
-                case 'w': keys.w = true; break;
-                case 'a': keys.a = true; break;
-                case 's': keys.s = true; break;
-                case 'd': keys.d = true; break;
-                case ' ': keys.space = true; event.preventDefault(); break;
-                case 'control': keys.ctrl = true; break;
-                case 'tab':
-                    keys.tab = true;
-                    document.getElementById('leaderboard').style.display = 'block';
-                    event.preventDefault();
-                    break;
+        document.addEventListener("keydown",(e)=>{
+            switch(e.key.toLowerCase()){
+                case "w":keys.w=1;break;
+                case "a":keys.a=1;break;
+                case "s":keys.s=1;break;
+                case "d":keys.d=1;break;
+                case " ":keys.space=1;e.preventDefault();break;
+                case "control":keys.ctrl=1;break;
+                case "tab":keys.tab=1;document.getElementById("leaderboard").style.display="block";e.preventDefault();break;
             }
         });
-        document.addEventListener('keyup', (event) => {
-            switch (event.key.toLowerCase()) {
-                case 'w': keys.w = false; break;
-                case 'a': keys.a = false; break;
-                case 's': keys.s = false; break;
-                case 'd': keys.d = false; break;
-                case ' ': keys.space = false; break;
-                case 'control': keys.ctrl = false; break;
-                case 'tab':
-                    keys.tab = false;
-                    document.getElementById('leaderboard').style.display = 'none';
-                    break;
+        document.addEventListener("keyup",(e)=>{
+            switch(e.key.toLowerCase()){
+                case "w":keys.w=0;break;
+                case "a":keys.a=0;break;
+                case "s":keys.s=0;break;
+                case "d":keys.d=0;break;
+                case " ":keys.space=0;break;
+                case "control":keys.ctrl=0;break;
+                case "tab":keys.tab=0;document.getElementById("leaderboard").style.display="none";break;
             }
         });
-        document.addEventListener('mousedown', (event) => {
-            if (event.button === 2) {
-                mouseDown = true;
-                prevMouseX = event.clientX;
-            }
-        });
-        document.addEventListener('mouseup', (event) => {
-            if (event.button === 2) mouseDown = false;
-        });
-        document.addEventListener('mousemove', (event) => {
-            if (mouseDown) {
-                const deltaX = event.clientX - prevMouseX;
-                camera.rotation.y -= deltaX * rotateSpeed;
-                prevMouseX = event.clientX;
-            }
-        });
-        document.addEventListener('click', (event) => {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-            raycaster.setFromCamera(mouse, camera);
-            const meshes = Array.from(playerMeshes.values()).map(p => p.mesh);
-            const intersects = raycaster.intersectObjects(meshes);
-
-            if (intersects.length > 0) {
-                const clickedMesh = intersects[0].object;
-                for (let [name, player] of playerMeshes.entries()) {
-                    if (player.mesh === clickedMesh) {
-                        followTarget = name;
-                        console.log("Following:", name);
+        // Click to follow
+        document.addEventListener("click",(e)=>{
+            renderer.domElement.requestPointerLock();
+            mouse.x=(e.clientX/window.innerWidth)*2-1;
+            mouse.y=-(e.clientY/window.innerHeight)*2+1;
+            raycaster.setFromCamera(mouse,camera);
+            const meshes = Array.from(playerMeshes.values()).map(p=>p.mesh);
+            const hits=raycaster.intersectObjects(meshes);
+            if(hits.length>0){
+                const clicked=hits[0].object;
+                for(let [name,pl] of playerMeshes.entries()){
+                    if(pl.mesh===clicked){
+                        followTarget=name;
+                        console.log("Following",name);
+                        pl.mesh.visible = false;
+                        pl.label.visible = false;
                     }
                 }
             } else {
-                followTarget = null; // click empty space cancels follow
+                followTarget=null;
+                playerMeshes.forEach(p=>{
+                    p.mesh.visible = true;
+                    p.label.visible = true
+                })
             }
         });
 
-        document.addEventListener('contextmenu', (event) => event.preventDefault());
+        // Camera
+        camera.position.set(0,50,50);
 
-        // Camera setup
-        camera.position.set(0, 50, 50);
-
-        // Animation loop
-        function animate() {
+        // Main loop
+        function animate(){
             requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-            if (!followTarget) {
-                const speed = moveSpeed * delta;
-                const direction = new THREE.Vector3();
-                camera.getWorldDirection(direction);
-                direction.y = 0;
-                direction.normalize();
-                const right = new THREE.Vector3();
-                right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+            const delta=clock.getDelta();
 
-                if (keys.w) camera.position.addScaledVector(direction, speed);
-                if (keys.s) camera.position.addScaledVector(direction, -speed);
-                if (keys.a) camera.position.addScaledVector(right, -speed);
-                if (keys.d) camera.position.addScaledVector(right, speed);
-                if (keys.space) camera.position.y += speed;
-                if (keys.ctrl) camera.position.y -= speed;
+            // Lerp players
+            playerMeshes.forEach(p=>{
+                p.mesh.position.lerp(p.targetPos,0.1);
+                p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
+            });
+
+            if(!followTarget){
+                const speed=moveSpeed*delta;
+                const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
+                const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
+                if(keys.w) camera.position.addScaledVector(dir,speed);
+                if(keys.s) camera.position.addScaledVector(dir,-speed);
+                if(keys.a) camera.position.addScaledVector(right,-speed);
+                if(keys.d) camera.position.addScaledVector(right,speed);
+                if(keys.space) camera.position.y+=speed;
+                if(keys.ctrl) camera.position.y-=speed;
+                camera.rotation.set(pitch,yaw,0,"YXZ");
             }
-            
-            if (followTarget && playerMeshes.has(followTarget)) {
-                const player = playerMeshes.get(followTarget);
-                const targetPos = player.mesh.position;
 
-                // Use player's velocity if available, else use last direction
-                const vel = velocities.get(followTarget) || lastDirection;
-                if (vel.lengthSq() > 0.0001) {
-                    lastDirection.copy(vel).normalize();
+            if(followTarget && playerMeshes.has(followTarget)){
+                const playerData=latestPlayerData[followTarget];
+                if(playerData){
+                    const baseX=(playerData.x-offsetX)/scaleFactor;
+                    const baseY=(playerData.z-offsetZ)/scaleFactor;
+                    const baseZ=-(playerData.y-offsetY)/scaleFactor;
+                    const posX=baseX*modelScale;
+                    const posY=baseY*modelScale+testHeight+3;
+                    const posZ=baseZ*modelScale;
+                    camera.position.set(posX,posY,posZ);
+
+                    const pch=THREE.MathUtils.degToRad(-playerData.pitch||0);
+                    const yw=THREE.MathUtils.degToRad(playerData.yaw||0);
+                    
+                    camera.quaternion.setFromEuler(new THREE.Euler(pch,yw - Math.PI/2,0,"YXZ"));
                 }
-
-                // Always position camera behind player
-                const followOffset = lastDirection.clone().multiplyScalar(1); // 30 units behind
-                followOffset.y = 45; // height above player
-                const desiredPos = targetPos.clone().add(followOffset);
-
-                // Smoothly move camera
-                camera.position.lerp(desiredPos, 0.15);
-
-                // Look slightly ahead of player
-                const lookAhead = targetPos.clone().add(lastDirection.clone().multiplyScalar(1));
-                camera.lookAt(lookAhead);
             }
 
-
-
-            renderer.render(scene, camera);
+            renderer.render(scene,camera);
         }
-
-        // Resize handler
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // Start animation
         animate();
+
+        window.addEventListener("resize",()=>{
+            camera.aspect=window.innerWidth/window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth,window.innerHeight);
+        });
     </script>
 </body>
 </html>
