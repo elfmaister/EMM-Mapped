@@ -4,8 +4,8 @@
     <title>EMM 3D Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/webxr/VRButton.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/webxr/XRControllerModelFactory.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/webxr/VRButton.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/webxr/XRControllerModelFactory.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -39,6 +39,16 @@
         </table>
     </div>
     <script>
+        // Check WebXR support
+        if (navigator.xr) {
+            navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+                console.log('WebXR immersive-vr supported:', supported);
+            }).catch(err => {
+                console.error('WebXR support check failed:', err);
+            });
+        } else {
+            console.error('WebXR not available in this browser');
+        }
         // Shared transform constants
         const offsetX = 6498.061;
         const offsetY = -7027.718;
@@ -55,10 +65,14 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.xr.enabled = true; // Enable WebXR
+        renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
-        // Add VR button
-        document.body.appendChild(VRButton.createButton(renderer));
+        // Add VR button with error handling
+        try {
+            document.body.appendChild(VRButton.createButton(renderer));
+        } catch (err) {
+            console.error('Failed to create VR button:', err);
+        }
         // VR controllers
         const controller1 = renderer.xr.getController(0);
         const controller2 = renderer.xr.getController(1);
@@ -77,14 +91,14 @@
         // VR session events
         renderer.xr.addEventListener('sessionstart', () => {
             isVRActive = true;
-            camera.position.set(0, 50, 50); // Reset to initial position for VR
-            document.getElementById('leaderboard').style.display = 'none'; // Hide leaderboard in VR
+            camera.position.set(0, 50, 50);
+            document.getElementById('leaderboard').style.display = 'none';
         });
         renderer.xr.addEventListener('sessionend', () => {
             isVRActive = false;
-            camera.position.set(0, 50, 50); // Reset for desktop
+            camera.position.set(0, 50, 50);
         });
-        // VR movement (basic smooth locomotion)
+        // VR movement
         function handleVRMovement(delta) {
             if (!isVRActive) return;
             const session = renderer.xr.getSession();
@@ -93,14 +107,14 @@
             let moveDir = new THREE.Vector3(0, 0, 0);
             inputSources.forEach((input) => {
                 if (input.gamepad && input.gamepad.axes.length >= 2) {
-                    const [xAxis, yAxis] = input.gamepad.axes; // Thumbstick axes
+                    const [xAxis, yAxis] = input.gamepad.axes;
                     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
                     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
                     moveDir.add(forward.multiplyScalar(-yAxis));
                     moveDir.add(right.multiplyScalar(xAxis));
                 }
             });
-            moveDir.y = 0; // Restrict to horizontal movement
+            moveDir.y = 0;
             if (moveDir.length() > 0) {
                 moveDir.normalize().multiplyScalar(vrMoveSpeed * delta);
                 camera.position.add(moveDir);
@@ -135,14 +149,12 @@
         // Spawn or update a player
         function spawnRealtimePlayerIndicator(data) {
             if (!data || !data.name) return;
-            // Transform GMod → Three.js
             const baseX = (data.x - offsetX) / scaleFactor;
             const baseY = (data.z - offsetZ) / scaleFactor;
             const baseZ = -(data.y - offsetY) / scaleFactor;
             const posX = baseX * modelScale;
             const posY = baseY * modelScale + testHeight + 1;
             const posZ = baseZ * modelScale;
-            // Track max velocity
             if (data.vel !== undefined) {
                 const adjustedVel = data.vel / 10;
                 const currentMax = maxVelocities.get(data.name) || 0;
@@ -171,123 +183,142 @@
             const player = playerMeshes.get(data.name);
             player.targetPos.set(posX,posY,posZ);
             player.label.position.set(posX,posY+3,posZ);
-            // Save data globally
             latestPlayerData[data.name] = data;
         }
-        // Load map
+        // Load map with enhanced logging
         const loader = new THREE.GLTFLoader();
         async function loadMap() {
             try {
-                const gltf = await new Promise((res,rej)=>{
-                    loader.load("/gm_bigcity/scene.gltf",res,(p)=>{
-                        const percent = (p.loaded/p.total*100).toFixed(2);
-                        document.getElementById("loading").innerText=`Loading map... ${percent}%`;
-                    },rej);
+                console.log('Starting glTF load for /gm_bigcity/scene.gltf');
+                const gltf = await new Promise((res, rej) => {
+                    loader.load(
+                        '/gm_bigcity/scene.gltf',
+                        (gltf) => {
+                            console.log('glTF loaded successfully');
+                            res(gltf);
+                        },
+                        (p) => {
+                            const percent = (p.loaded / p.total * 100).toFixed(2);
+                            console.log(`Loading progress: ${percent}% (${p.loaded}/${p.total} bytes)`);
+                            document.getElementById("loading").innerText = `Loading map... ${percent}%`;
+                        },
+                        (err) => {
+                            console.error('glTF load error:', err);
+                            rej(err);
+                        }
+                    );
                 });
                 scene.add(gltf.scene);
-                gltf.scene.scale.set(2.5,2.5,2.5);
-                gltf.scene.position.set(0,15,0);
-                document.getElementById("loading").style.display="none";
+                gltf.scene.scale.set(2.5, 2.5, 2.5);
+                gltf.scene.position.set(0, 15, 0);
+                console.log('Map added to scene');
+                document.getElementById("loading").style.display = "none";
                 initRealtimePlayer();
-            } catch(err) {
-                console.error("Error loading map:",err);
-                document.getElementById("loading").innerText="Failed to load map.";
-                setTimeout(()=>{document.getElementById("loading").style.display="none";initRealtimePlayer();},3000);
+            } catch (err) {
+                console.error('Map loading failed:', err);
+                document.getElementById("loading").innerText = `Failed to load map: ${err.message}`;
+                setTimeout(() => {
+                    document.getElementById("loading").style.display = "none";
+                    console.log('Proceeding to WebSocket initialization despite map failure');
+                    initRealtimePlayer();
+                }, 5000);
             }
         }
         loadMap();
         // WebSocket connection
         function initRealtimePlayer() {
+            console.log('Initializing WebSocket connection');
             const socket = new WebSocket("wss://emm-mapped.onrender.com/data");
-            socket.onopen=()=>console.log("WebSocket connected");
-            socket.onmessage=(event)=>{
+            socket.onopen = () => console.log("WebSocket connected");
+            socket.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
                     if (msg.players) {
                         const current = new Set();
-                        msg.players.forEach(p=>{
+                        msg.players.forEach(p => {
                             spawnRealtimePlayerIndicator(p);
                             current.add(p.name);
                         });
-                        playerMeshes.forEach((pl,name)=>{
+                        playerMeshes.forEach((pl, name) => {
                             if (!current.has(name)) {
-                                scene.remove(pl.mesh); scene.remove(pl.label);
+                                scene.remove(pl.mesh);
+                                scene.remove(pl.label);
                                 playerMeshes.delete(name);
                                 updateLeaderboard();
                             }
                         });
                     }
-                } catch(e){console.error("Bad WS msg:",e);}
+                } catch (e) {
+                    console.error("Bad WS msg:", e);
+                }
             };
-            socket.onclose=()=>console.log("WebSocket closed");
-            socket.onerror=(e)=>console.error("WebSocket error:",e);
+            socket.onclose = () => console.log("WebSocket closed");
+            socket.onerror = (e) => console.error("WebSocket error:", e);
         }
         // Freecam controls
         const moveSpeed = 50;
         const keys = {w:0,a:0,s:0,d:0,space:0,ctrl:0,tab:0};
         const clock = new THREE.Clock();
-        document.addEventListener("keydown",(e)=>{
+        document.addEventListener("keydown", (e) => {
             switch(e.key.toLowerCase()){
-                case "w":keys.w=1;break;
-                case "a":keys.a=1;break;
-                case "s":keys.s=1;break;
-                case "d":keys.d=1;break;
-                case " ":keys.space=1;e.preventDefault();break;
-                case "control":keys.ctrl=1;break;
-                case "tab":keys.tab=1;document.getElementById("leaderboard").style.display="block";e.preventDefault();break;
+                case "w": keys.w = 1; break;
+                case "a": keys.a = 1; break;
+                case "s": keys.s = 1; break;
+                case "d": keys.d = 1; break;
+                case " ": keys.space = 1; e.preventDefault(); break;
+                case "control": keys.ctrl = 1; break;
+                case "tab": keys.tab = 1; document.getElementById("leaderboard").style.display = "block"; e.preventDefault(); break;
             }
         });
-        document.addEventListener("keyup",(e)=>{
+        document.addEventListener("keyup", (e) => {
             switch(e.key.toLowerCase()){
-                case "w":keys.w=0;break;
-                case "a":keys.a=0;break;
-                case "s":keys.s=0;break;
-                case "d":keys.d=0;break;
-                case " ":keys.space=0;break;
-                case "control":keys.ctrl=0;break;
-                case "tab":keys.tab=0;document.getElementById("leaderboard").style.display="none";break;
+                case "w": keys.w = 0; break;
+                case "a": keys.a = 0; break;
+                case "s": keys.s = 0; break;
+                case "d": keys.d = 0; break;
+                case " ": keys.space = 0; break;
+                case "control": keys.ctrl = 0; break;
+                case "tab": keys.tab = 0; document.getElementById("leaderboard").style.display = "none"; break;
             }
         });
         // Click to follow
-        document.addEventListener("click",(e)=>{
-            if (isVRActive) return; // Disable click-to-follow in VR
+        document.addEventListener("click", (e) => {
+            if (isVRActive) return;
             renderer.domElement.requestPointerLock();
-            mouse.x=(e.clientX/window.innerWidth)*2-1;
-            mouse.y=-(e.clientY/window.innerHeight)*2+1;
-            raycaster.setFromCamera(mouse,camera);
-            const meshes = Array.from(playerMeshes.values()).map(p=>p.mesh);
-            const hits=raycaster.intersectObjects(meshes);
-            if(hits.length>0){
-                const clicked=hits[0].object;
-                for(let [name,pl] of playerMeshes.entries()){
-                    if(pl.mesh===clicked){
-                        followTarget=name;
-                        console.log("Following",name);
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const meshes = Array.from(playerMeshes.values()).map(p => p.mesh);
+            const hits = raycaster.intersectObjects(meshes);
+            if (hits.length > 0) {
+                const clicked = hits[0].object;
+                for (let [name, pl] of playerMeshes.entries()) {
+                    if (pl.mesh === clicked) {
+                        followTarget = name;
+                        console.log("Following", name);
                         pl.mesh.visible = false;
                         pl.label.visible = false;
                     }
                 }
             } else {
-                followTarget=null;
-                playerMeshes.forEach(p=>{
+                followTarget = null;
+                playerMeshes.forEach(p => {
                     p.mesh.visible = true;
-                    p.label.visible = true
-                })
+                    p.label.visible = true;
+                });
             }
         });
         // Camera
-        camera.position.set(0,50,50);
+        camera.position.set(0, 50, 50);
         // Main loop
         function animate() {
             renderer.setAnimationLoop((time) => {
                 const delta = clock.getDelta();
-                // Lerp players
                 playerMeshes.forEach(p => {
                     p.mesh.position.lerp(p.targetPos, 0.1);
                     p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0, 3, 0));
                 });
                 if (!isVRActive) {
-                    // Desktop controls
                     if (!followTarget) {
                         const speed = moveSpeed * delta;
                         const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
@@ -316,7 +347,6 @@
                         }
                     }
                 } else {
-                    // VR controls
                     handleVRMovement(delta);
                     if (followTarget && playerMeshes.has(followTarget)) {
                         const playerData = latestPlayerData[followTarget];
