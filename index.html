@@ -3,9 +3,9 @@
 <head>
     <title>EMM 3D Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.134.0/examples/jsm/loaders/GLTFLoader.js"></script>
-    <script src="https://unpkg.com/three@0.134.0/examples/jsm/webxr/VRButton.js"></script>
-    <script src="https://unpkg.com/three@0.134.0/examples/jsm/webxr/XRControllerModelFactory.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/webxr/VRButton.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/webxr/XRControllerModelFactory.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -43,11 +43,14 @@
         if (navigator.xr) {
             navigator.xr.isSessionSupported('immersive-vr').then(supported => {
                 console.log('WebXR immersive-vr supported:', supported);
+                if (!supported) {
+                    console.warn('WebXR immersive-vr not supported. Check browser settings or version.');
+                }
             }).catch(err => {
                 console.error('WebXR support check failed:', err);
             });
         } else {
-            console.warn('WebXR not available in this browser');
+            console.warn('WebXR not available in this browser. Ensure HTTPS and latest browser version.');
         }
         // Shared transform constants
         const offsetX = 6498.061;
@@ -191,8 +194,18 @@
             latestPlayerData[data.name] = data;
         }
         // Load map with enhanced logging
-        const loader = new THREE.GLTFLoader();
+        const loader = typeof THREE.GLTFLoader !== 'undefined' ? new THREE.GLTFLoader() : null;
         async function loadMap() {
+            if (!loader) {
+                console.error('GLTFLoader not available, skipping map load');
+                document.getElementById("loading").innerText = 'Failed to load map: GLTFLoader unavailable';
+                setTimeout(() => {
+                    document.getElementById("loading").style.display = "none";
+                    console.log('Proceeding to WebSocket initialization');
+                    initRealtimePlayer();
+                }, 10000);
+                return;
+            }
             try {
                 console.log('Attempting to load /gm_bigcity/scene.gltf');
                 const gltf = await new Promise((res, rej) => {
@@ -358,9 +371,9 @@
                     if (followTarget && playerMeshes.has(followTarget)) {
                         const playerData = latestPlayerData[followTarget];
                         if (playerData) {
-                            const baseX = (playerData.x - offsetX) / scaleFactor;
-                            const baseY = (playerData.z - offsetZ) / scaleFactor;
-                            const baseZ = -(playerData.y - offsetY) / scaleFactor;
+                            const baseX = (data.x - offsetX) / scaleFactor;
+                            const baseY = (data.z - offsetZ) / scaleFactor;
+                            const baseZ = -(data.y - offsetY) / scaleFactor;
                             const posX = baseX * modelScale;
                             const posY = baseY * modelScale + testHeight + 3;
                             const posZ = baseZ * modelScale;
