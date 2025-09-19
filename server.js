@@ -1,15 +1,10 @@
 const express = require('express');
-const https = require('https'); // Changed from http
+const http = require('http'); // Reverted to http for Render compatibility
 const WebSocket = require('ws');
 const path = require('path');
-const fs = require('fs');
 
 const app = express();
-// Use HTTPS server with certificates (for local testing; Render may handle HTTPS)
-const server = https.createServer({
-    cert: fs.readFileSync('path/to/cert.pem'), // Replace with actual paths or comment out if Render handles HTTPS
-    key: fs.readFileSync('path/to/key.pem')
-}, app);
+const server = http.createServer(app); // Use http; Render handles HTTPS
 const wss = new WebSocket.Server({ noServer: true });
 
 app.use(express.json({ limit: '10mb' }));
@@ -36,7 +31,7 @@ app.use((req, res, next) => {
         "connect-src 'self' wss://emm-mapped.onrender.com wss://* https://*; " +
         "style-src 'self' 'unsafe-inline'; " +
         "font-src 'self' data:; " +
-        "xr-spatial-tracking 'self';" // Added for WebXR
+        "xr-spatial-tracking 'self';" // Retained for WebXR compatibility
     );
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST');
