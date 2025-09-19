@@ -3,9 +3,9 @@
 <head>
     <title>EMM 3D Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/webxr/VRButton.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/webxr/XRControllerModelFactory.js"></script>
+    <script src="https://unpkg.com/three@0.134.0/examples/jsm/loaders/GLTFLoader.js"></script>
+    <script src="https://unpkg.com/three@0.134.0/examples/jsm/webxr/VRButton.js"></script>
+    <script src="https://unpkg.com/three@0.134.0/examples/jsm/webxr/XRControllerModelFactory.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -47,7 +47,7 @@
                 console.error('WebXR support check failed:', err);
             });
         } else {
-            console.error('WebXR not available in this browser');
+            console.warn('WebXR not available in this browser');
         }
         // Shared transform constants
         const offsetX = 6498.061;
@@ -68,23 +68,28 @@
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
         // Add VR button with error handling
-        try {
+        if (typeof VRButton !== 'undefined') {
             document.body.appendChild(VRButton.createButton(renderer));
-        } catch (err) {
-            console.error('Failed to create VR button:', err);
+        } else {
+            console.warn('VRButton not available, skipping VR initialization');
         }
         // VR controllers
-        const controller1 = renderer.xr.getController(0);
-        const controller2 = renderer.xr.getController(1);
-        scene.add(controller1);
-        scene.add(controller2);
-        const controllerModelFactory = new XRControllerModelFactory();
-        const controllerGrip1 = renderer.xr.getControllerGrip(0);
-        controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-        scene.add(controllerGrip1);
-        const controllerGrip2 = renderer.xr.getControllerGrip(1);
-        controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-        scene.add(controllerGrip2);
+        let controller1, controller2, controllerGrip1, controllerGrip2;
+        if (typeof XRControllerModelFactory !== 'undefined') {
+            controller1 = renderer.xr.getController(0);
+            controller2 = renderer.xr.getController(1);
+            scene.add(controller1);
+            scene.add(controller2);
+            const controllerModelFactory = new XRControllerModelFactory();
+            controllerGrip1 = renderer.xr.getControllerGrip(0);
+            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+            scene.add(controllerGrip1);
+            controllerGrip2 = renderer.xr.getControllerGrip(1);
+            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+            scene.add(controllerGrip2);
+        } else {
+            console.warn('XRControllerModelFactory not available, skipping controller setup');
+        }
         // VR locomotion variables
         let vrMoveSpeed = 50;
         let isVRActive = false;
@@ -189,7 +194,7 @@
         const loader = new THREE.GLTFLoader();
         async function loadMap() {
             try {
-                console.log('Starting glTF load for /gm_bigcity/scene.gltf');
+                console.log('Attempting to load /gm_bigcity/scene.gltf');
                 const gltf = await new Promise((res, rej) => {
                     loader.load(
                         '/gm_bigcity/scene.gltf',
@@ -216,12 +221,14 @@
                 initRealtimePlayer();
             } catch (err) {
                 console.error('Map loading failed:', err);
-                document.getElementById("loading").innerText = `Failed to load map: ${err.message}`;
+                let errorMsg = err.message || 'Unknown error';
+                if (err.message.includes('fetch')) errorMsg = 'Network error: Failed to fetch glTF';
+                document.getElementById("loading").innerText = `Failed to load map: ${errorMsg}`;
                 setTimeout(() => {
                     document.getElementById("loading").style.display = "none";
-                    console.log('Proceeding to WebSocket initialization despite map failure');
+                    console.log('Proceeding to WebSocket initialization');
                     initRealtimePlayer();
-                }, 5000);
+                }, 10000);
             }
         }
         loadMap();
