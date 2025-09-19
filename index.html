@@ -4,8 +4,7 @@
     <title>EMM 3D Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/webxr/VRButton.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/webxr/XRControllerModelFactory.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/WebXRController.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -27,6 +26,13 @@
         #leaderboard th, #leaderboard td {
             padding: 8px; text-align: left; border-bottom: 1px solid #555;
         }
+        #vrButton {
+            position: absolute; bottom: 20px; right: 20px;
+            padding: 10px 20px; background: #0078d7; color: white;
+            border: none; border-radius: 5px; cursor: pointer;
+            font-family: Arial; font-size: 16px; z-index: 300;
+        }
+        #vrButton:hover { background: #005ba1; }
     </style>
 </head>
 <body>
@@ -38,6 +44,7 @@
             <tbody id="leaderboard-body"></tbody>
         </table>
     </div>
+    <button id="vrButton">Enter VR</button>
     <script>
         // Shared transform constants
         const offsetX = 6498.061;
@@ -55,64 +62,35 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.xr.enabled = true; // Enable WebXR
+        renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
-        // Add VR button with error handling
-        if (typeof VRButton !== 'undefined') {
-            document.body.appendChild(VRButton.createButton(renderer));
-        } else {
-            console.warn('VRButton not available, skipping VR initialization');
-        }
-        // VR controllers
-        let controller1, controller2, controllerGrip1, controllerGrip2;
-        if (typeof XRControllerModelFactory !== 'undefined') {
-            controller1 = renderer.xr.getController(0);
-            controller2 = renderer.xr.getController(1);
-            scene.add(controller1);
-            scene.add(controller2);
-            const controllerModelFactory = new XRControllerModelFactory();
-            controllerGrip1 = renderer.xr.getControllerGrip(0);
-            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-            scene.add(controllerGrip1);
-            controllerGrip2 = renderer.xr.getControllerGrip(1);
-            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-            scene.add(controllerGrip2);
-        } else {
-            console.warn('XRControllerModelFactory not available, skipping controller setup');
-        }
-        // VR locomotion variables
-        let vrMoveSpeed = 50;
-        let isVRActive = false;
-        // VR session events
-        renderer.xr.addEventListener('sessionstart', () => {
-            isVRActive = true;
-            camera.position.set(0, 50, 50);
-            document.getElementById('leaderboard').style.display = 'none';
+        // VR setup
+        const vrButton = document.getElementById('vrButton');
+        vrButton.addEventListener('click', () => {
+            renderer.xr.enabled = true;
+            renderer.xr.setSession('immersive-vr').then(() => {
+                vrButton.style.display = 'none';
+            }).catch(err => console.error('VR session failed:', err));
         });
-        renderer.xr.addEventListener('sessionend', () => {
-            isVRActive = false;
-            camera.position.set(0, 50, 50);
-        });
-        // VR movement
-        function handleVRMovement(delta) {
-            if (!isVRActive) return;
-            const session = renderer.xr.getSession();
-            if (!session) return;
-            const inputSources = session.inputSources;
-            let moveDir = new THREE.Vector3(0, 0, 0);
-            inputSources.forEach((input) => {
-                if (input.gamepad && input.gamepad.axes.length >= 2) {
-                    const [xAxis, yAxis] = input.gamepad.axes;
-                    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-                    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-                    moveDir.add(forward.multiplyScalar(-yAxis));
-                    moveDir.add(right.multiplyScalar(xAxis));
+        const vrGroup = new THREE.Group();
+        vrGroup.add(camera);
+        scene.add(vrGroup);
+        const controller1 = renderer.xr.getController(0); // Left controller
+        const controller2 = renderer.xr.getController(1); // Right controller
+        scene.add(controller1);
+        scene.add(controller2);
+        let moveForward = 0, moveRight = 0, rotateYaw = 0;
+        controller1.addEventListener('selectstart', () => {}); // Optional: Add select actions
+        controller2.addEventListener('selectstart', () => {});
+        function handleController(controller, index) {
+            const gamepad = renderer.xr.getGamepad(index);
+            if (gamepad && gamepad.axes.length >= 4) {
+                if (index === 0) { // Left controller for movement
+                    moveForward = -gamepad.axes[3]; // Y-axis of left thumbstick
+                    moveRight = gamepad.axes[2]; // X-axis of left thumbstick
+                } else if (index === 1) { // Right controller for rotation
+                    rotateYaw = gamepad.axes[2]; // X-axis of right thumbstick
                 }
-            });
-            moveDir.y = 0;
-            if (moveDir.length() > 0) {
-                moveDir.normalize().multiplyScalar(vrMoveSpeed * delta);
-                camera.position.add(moveDir);
             }
         }
         // Lights
@@ -200,8 +178,8 @@
                 initRealtimePlayer();
             } catch(err) {
                 console.error("Error loading map:",err);
-                document.getElementById("loading").innerText="Failed to load map: " + (err.message || "Unknown error");
-                setTimeout(()=>{document.getElementById("loading").style.display="none";initRealtimePlayer();},5000);
+                document.getElementById("loading").innerText="Failed to load map.";
+                setTimeout(()=>{document.getElementById("loading").style.display="none";initRealtimePlayer();},3000);
             }
         }
         loadMap();
@@ -259,96 +237,101 @@
         });
         // Click to follow
         document.addEventListener("click",(e)=>{
-            if (isVRActive) return;
-            renderer.domElement.requestPointerLock();
-            mouse.x=(e.clientX/window.innerWidth)*2-1;
-            mouse.y=-(e.clientY/window.innerHeight)*2+1;
-            raycaster.setFromCamera(mouse,camera);
-            const meshes = Array.from(playerMeshes.values()).map(p=>p.mesh);
-            const hits=raycaster.intersectObjects(meshes);
-            if(hits.length>0){
-                const clicked=hits[0].object;
-                for(let [name,pl] of playerMeshes.entries()){
-                    if(pl.mesh===clicked){
-                        followTarget=name;
-                        console.log("Following",name);
-                        pl.mesh.visible = false;
-                        pl.label.visible = false;
+            if (!renderer.xr.isPresenting) {
+                renderer.domElement.requestPointerLock();
+                mouse.x=(e.clientX/window.innerWidth)*2-1;
+                mouse.y=-(e.clientY/window.innerHeight)*2+1;
+                raycaster.setFromCamera(mouse,camera);
+                const meshes = Array.from(playerMeshes.values()).map(p=>p.mesh);
+                const hits=raycaster.intersectObjects(meshes);
+                if(hits.length>0){
+                    const clicked=hits[0].object;
+                    for(let [name,pl] of playerMeshes.entries()){
+                        if(pl.mesh===clicked){
+                            followTarget=name;
+                            console.log("Following",name);
+                            pl.mesh.visible = false;
+                            pl.label.visible = false;
+                        }
                     }
+                } else {
+                    followTarget=null;
+                    playerMeshes.forEach(p=>{
+                        p.mesh.visible = true;
+                        p.label.visible = true
+                    });
                 }
-            } else {
-                followTarget=null;
-                playerMeshes.forEach(p=>{
-                    p.mesh.visible = true;
-                    p.label.visible = true;
-                });
             }
         });
         // Camera
         camera.position.set(0,50,50);
         // Main loop
-        function animate(){
-            renderer.setAnimationLoop((time) => {
-                const delta = clock.getDelta();
-                // Lerp players
-                playerMeshes.forEach(p=>{
-                    p.mesh.position.lerp(p.targetPos,0.1);
-                    p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
-                });
-                if (!isVRActive) {
-                    if (!followTarget) {
-                        const speed = moveSpeed * delta;
-                        const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
-                        const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
-                        if (keys.w) camera.position.addScaledVector(dir, speed);
-                        if (keys.s) camera.position.addScaledVector(dir, -speed);
-                        if (keys.a) camera.position.addScaledVector(right, -speed);
-                        if (keys.d) camera.position.addScaledVector(right, speed);
-                        if (keys.space) camera.position.y += speed;
-                        if (keys.ctrl) camera.position.y -= speed;
-                        camera.rotation.set(pitch, yaw, 0, "YXZ");
-                    }
-                    if (followTarget && playerMeshes.has(followTarget)) {
-                        const playerData = latestPlayerData[followTarget];
-                        if (playerData) {
-                            const baseX = (playerData.x - offsetX) / scaleFactor;
-                            const baseY = (playerData.z - offsetZ) / scaleFactor;
-                            const baseZ = -(playerData.y - offsetY) / scaleFactor;
-                            const posX = baseX * modelScale;
-                            const posY = baseY * modelScale + testHeight + 3;
-                            const posZ = baseZ * modelScale;
-                            camera.position.set(posX, posY, posZ);
-                            const pch = THREE.MathUtils.degToRad(-playerData.pitch || 0);
-                            const yw = THREE.MathUtils.degToRad(playerData.yaw || 0);
-                            camera.quaternion.setFromEuler(new THREE.Euler(pch, yw - Math.PI / 2, 0, "YXZ"));
-                        }
-                    }
-                } else {
-                    handleVRMovement(delta);
-                    if (followTarget && playerMeshes.has(followTarget)) {
-                        const playerData = latestPlayerData[followTarget];
-                        if (playerData) {
-                            const baseX = (playerData.x - offsetX) / scaleFactor;
-                            const baseY = (playerData.z - offsetZ) / scaleFactor;
-                            const baseZ = -(playerData.y - offsetY) / scaleFactor;
-                            const posX = baseX * modelScale;
-                            const posY = baseY * modelScale + testHeight + 3;
-                            const posZ = baseZ * modelScale;
-                            camera.position.set(posX, posY, posZ);
-                            const pch = THREE.MathUtils.degToRad(-playerData.pitch || 0);
-                            const yw = THREE.MathUtils.degToRad(playerData.yaw || 0);
-                            camera.quaternion.setFromEuler(new THREE.Euler(pch, yw - Math.PI / 2, 0, "YXZ"));
-                        }
-                    }
-                }
-                renderer.render(scene, camera);
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            // Lerp players
+            playerMeshes.forEach(p=>{
+                p.mesh.position.lerp(p.targetPos,0.1);
+                p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
             });
+            if (!renderer.xr.isPresenting && !followTarget) {
+                const speed = moveSpeed * delta;
+                const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
+                const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+                if (keys.w) camera.position.addScaledVector(dir, speed);
+                if (keys.s) camera.position.addScaledVector(dir, -speed);
+                if (keys.a) camera.position.addScaledVector(right, -speed);
+                if (keys.d) camera.position.addScaledVector(right, speed);
+                if (keys.space) camera.position.y += speed;
+                if (keys.ctrl) camera.position.y -= speed;
+                camera.rotation.set(pitch, yaw, 0, "YXZ");
+            }
+            if (!renderer.xr.isPresenting && followTarget && playerMeshes.has(followTarget)) {
+                const playerData = latestPlayerData[followTarget];
+                if (playerData) {
+                    const baseX = (playerData.x - offsetX) / scaleFactor;
+                    const baseY = (playerData.z - offsetZ) / scaleFactor;
+                    const baseZ = -(playerData.y - offsetY) / scaleFactor;
+                    const posX = baseX * modelScale;
+                    const posY = baseY * modelScale + testHeight + 3;
+                    const posZ = baseZ * modelScale;
+                    camera.position.set(posX, posY, posZ);
+                    const pch = THREE.MathUtils.degToRad(-playerData.pitch || 0);
+                    const yw = THREE.MathUtils.degToRad(playerData.yaw || 0);
+                    camera.quaternion.setFromEuler(new THREE.Euler(pch, yw - Math.PI / 2, 0, "YXZ"));
+                }
+            }
+            if (renderer.xr.isPresenting) {
+                handleController(controller1, 0);
+                handleController(controller2, 1);
+                const speed = moveSpeed * delta;
+                const direction = new THREE.Vector3(moveRight, 0, moveForward).normalize();
+                const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                cameraForward.y = 0; // Restrict to XZ plane
+                cameraForward.normalize();
+                const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
+                const moveVector = new THREE.Vector3()
+                    .addScaledVector(cameraForward, moveForward * speed)
+                    .addScaledVector(cameraRight, moveRight * speed);
+                vrGroup.position.add(moveVector);
+                vrGroup.rotation.y -= rotateYaw * delta * 1.5; // Adjust yaw rotation speed
+                followTarget = null; // Disable follow mode in VR
+                playerMeshes.forEach(p => {
+                    p.mesh.visible = true;
+                    p.label.visible = true;
+                });
+            }
+            renderer.render(scene, camera);
         }
         animate();
         window.addEventListener("resize",()=>{
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        renderer.xr.addEventListener('sessionend', () => {
+            vrButton.style.display = 'block';
+            vrGroup.position.set(0, 50, 50); // Reset position on VR exit
         });
     </script>
 </body>
