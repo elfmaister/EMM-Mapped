@@ -1,10 +1,15 @@
 const express = require('express');
-const http = require('http');
+const https = require('https'); // Changed from http
 const WebSocket = require('ws');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
-const server = http.createServer(app);
+// Use HTTPS server with certificates (for local testing; Render may handle HTTPS)
+const server = https.createServer({
+    cert: fs.readFileSync('path/to/cert.pem'), // Replace with actual paths or comment out if Render handles HTTPS
+    key: fs.readFileSync('path/to/key.pem')
+}, app);
 const wss = new WebSocket.Server({ noServer: true });
 
 app.use(express.json({ limit: '10mb' }));
@@ -22,15 +27,16 @@ app.use('/gm_bigcity', (req, res, next) => {
     next();
 });
 
-// CSP middleware
+// CSP middleware with WebXR support
 app.use((req, res, next) => {
     res.set('Content-Security-Policy', 
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' 'sha256-ieoeWczDHkReVBsRBqaal5AFMlBtNjMzgwKvLqi/tSU='; " +
+        "default-src 'self' https://*; " +
+        "script-src 'self' https://cdnjs.cloudflare.com https://unpkg.com 'unsafe-inline' 'sha256-ieoeWczDHkReVBsRBqaal5AFMlBtNjMzgwKvLqi/tSU='; " +
         "img-src 'self' data:; " +
-        "connect-src 'self' wss://emm-mapped.onrender.com wss://*; " +
+        "connect-src 'self' wss://emm-mapped.onrender.com wss://* https://*; " +
         "style-src 'self' 'unsafe-inline'; " +
-        "font-src 'self' data:;"
+        "font-src 'self' data:; " +
+        "xr-spatial-tracking 'self';" // Added for WebXR
     );
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST');
