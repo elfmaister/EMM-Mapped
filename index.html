@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>EMM 3D Map</title>
+    <title>EMM 3D Map (VR Ready)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/jsm/webxr/VRButton.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -57,6 +58,10 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
+
+        // ✅ Enable WebXR
+        renderer.xr.enabled = true;
+        document.body.appendChild(THREE.VRButton.createButton(renderer));
 
         // Lights
         scene.add(new THREE.AmbientLight(0xffffff, 1.0));
@@ -188,7 +193,7 @@
             socket.onerror=(e)=>console.error("WebSocket error:",e);
         }
 
-        // Freecam controls
+        // Freecam controls (non-VR)
         const moveSpeed = 50;
         const keys = {w:0,a:0,s:0,d:0,space:0,ctrl:0,tab:0};
         const clock = new THREE.Clock();
@@ -216,79 +221,54 @@
             }
         });
 
-        // Click to follow
-        document.addEventListener("click",(e)=>{
-            renderer.domElement.requestPointerLock();
-            mouse.x=(e.clientX/window.innerWidth)*2-1;
-            mouse.y=-(e.clientY/window.innerHeight)*2+1;
-            raycaster.setFromCamera(mouse,camera);
-            const meshes = Array.from(playerMeshes.values()).map(p=>p.mesh);
-            const hits=raycaster.intersectObjects(meshes);
-            if(hits.length>0){
-                const clicked=hits[0].object;
-                for(let [name,pl] of playerMeshes.entries()){
-                    if(pl.mesh===clicked){
-                        followTarget=name;
-                        console.log("Following",name);
-                        pl.mesh.visible = false;
-                        pl.label.visible = false;
-                    }
-                }
-            } else {
-                followTarget=null;
-                playerMeshes.forEach(p=>{
-                    p.mesh.visible = true;
-                    p.label.visible = true
-                })
-            }
-        });
-
         // Camera
         camera.position.set(0,50,50);
 
-        // Main loop
+        // Main loop (WebXR friendly)
         function animate(){
-            requestAnimationFrame(animate);
-            const delta=clock.getDelta();
+            renderer.setAnimationLoop(()=>{
+                const delta=clock.getDelta();
 
-            // Lerp players
-            playerMeshes.forEach(p=>{
-                p.mesh.position.lerp(p.targetPos,0.1);
-                p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
-            });
+                // Lerp players
+                playerMeshes.forEach(p=>{
+                    p.mesh.position.lerp(p.targetPos,0.1);
+                    p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
+                });
 
-            if(!followTarget){
-                const speed=moveSpeed*delta;
-                const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
-                const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
-                if(keys.w) camera.position.addScaledVector(dir,-speed);
-                if(keys.s) camera.position.addScaledVector(dir,speed);
-                if(keys.a) camera.position.addScaledVector(right,speed);
-                if(keys.d) camera.position.addScaledVector(right,-speed);
-                if(keys.space) camera.position.y+=speed;
-                if(keys.ctrl) camera.position.y-=speed;
-                camera.rotation.set(pitch,yaw,0,"YXZ");
-            }
+                if(!renderer.xr.isPresenting){
+                    if(!followTarget){
+                        const speed=moveSpeed*delta;
+                        const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
+                        const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
+                        if(keys.w) camera.position.addScaledVector(dir,-speed);
+                        if(keys.s) camera.position.addScaledVector(dir,speed);
+                        if(keys.a) camera.position.addScaledVector(right,speed);
+                        if(keys.d) camera.position.addScaledVector(right,-speed);
+                        if(keys.space) camera.position.y+=speed;
+                        if(keys.ctrl) camera.position.y-=speed;
+                        camera.rotation.set(pitch,yaw,0,"YXZ");
+                    }
 
-            if(followTarget && playerMeshes.has(followTarget)){
-                const playerData=latestPlayerData[followTarget];
-                if(playerData){
-                    const baseX=(playerData.x-offsetX)/scaleFactor;
-                    const baseY=(playerData.z-offsetZ)/scaleFactor;
-                    const baseZ=-(playerData.y-offsetY)/scaleFactor;
-                    const posX=baseX*modelScale;
-                    const posY=baseY*modelScale+testHeight+3;
-                    const posZ=baseZ*modelScale;
-                    camera.position.set(posX,posY,posZ);
+                    if(followTarget && playerMeshes.has(followTarget)){
+                        const playerData=latestPlayerData[followTarget];
+                        if(playerData){
+                            const baseX=(playerData.x-offsetX)/scaleFactor;
+                            const baseY=(playerData.z-offsetZ)/scaleFactor;
+                            const baseZ=-(playerData.y-offsetY)/scaleFactor;
+                            const posX=baseX*modelScale;
+                            const posY=baseY*modelScale+testHeight+3;
+                            const posZ=baseZ*modelScale;
+                            camera.position.set(posX,posY,posZ);
 
-                    const pch=THREE.MathUtils.degToRad(-playerData.pitch||0);
-                    const yw=THREE.MathUtils.degToRad(playerData.yaw||0);
-                    
-                    camera.quaternion.setFromEuler(new THREE.Euler(pch,yw - Math.PI/2,0,"YXZ"));
+                            const pch=THREE.MathUtils.degToRad(-playerData.pitch||0);
+                            const yw=THREE.MathUtils.degToRad(playerData.yaw||0);
+                            camera.quaternion.setFromEuler(new THREE.Euler(pch,yw - Math.PI/2,0,"YXZ"));
+                        }
+                    }
                 }
-            }
 
-            renderer.render(scene,camera);
+                renderer.render(scene,camera);
+            });
         }
         animate();
 
