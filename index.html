@@ -65,276 +65,265 @@
 <button id="enter-vr-btn">Enter VR</button>
 
 <script>
-/* ===== Constants ===== */
-const offsetX = 6498.061;
-const offsetY = -7027.718;
-const offsetZ = -10647.092;
-const testHeight = 45;
-const scaleFactor = 39.269;
-const modelScale = 2.5;
+    // ===== Constants =====
+    const offsetX = 6498.061, offsetY = -7027.718, offsetZ = -10647.092;
+    const testHeight = 45, scaleFactor = 39.269, modelScale = 2.5;
 
-/* ===== Global variables ===== */
-const latestPlayerData = {};
-let yaw = 0, pitch = 0; // desktop freecam rotation
-const keys = { w: 0, a: 0, s: 0, d: 0, space: 0, ctrl: 0, tab: 0 };
-const moveSpeed = 50;
-const clock = new THREE.Clock();
-let followTarget = null;
+    // ===== Global variables =====
+    const latestPlayerData = {};
+    let yaw = 0, pitch = 0; // desktop freecam rotation
+    const keys = { w:0, a:0, s:0, d:0, space:0, ctrl:0, tab:0 };
+    const moveSpeed = 50;
+    const clock = new THREE.Clock();
+    let followTarget = null;
 
-/* ===== Scene setup ===== */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87CEEB); // blue sky
+    // ===== Scene setup =====
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
-camera.position.set(0, 150, 200); // VR starting above map
-camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 20000);
+    camera.position.set(0, 150, 200);
+    camera.lookAt(0,0,0);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.xr.enabled = true; // enable WebXR
-document.body.appendChild(renderer.domElement);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
 
-/* ===== Lighting ===== */
-const ambient = new THREE.AmbientLight(0xffffff, 0.6); // soft ambient
-scene.add(ambient);
+    // ===== Lights =====
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    dirLight.position.set(100, 200, 100);
+    scene.add(dirLight);
 
-const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-sun.position.set(100, 200, 100);
-sun.castShadow = true;
-scene.add(sun);
+    // ===== Player indicators =====
+    const playerGeometry = new THREE.CylinderGeometry(1,1,2,8);
+    const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const playerMeshes = new Map();
+    const maxVelocities = new Map();
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
 
-/* ===== Player indicators ===== */
-const playerGeometry = new THREE.CylinderGeometry(1, 1, 2, 8);
-const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-const playerMeshes = new Map();
-const maxVelocities = new Map();
+    // ===== Leaderboard =====
+    function updateLeaderboard() {
+        const tbody = document.getElementById("leaderboard-body");
+        tbody.innerHTML = "";
+        Array.from(maxVelocities.entries())
+            .sort((a,b)=>b[1]-a[1])
+            .forEach(([name, vel], i)=>{
+                if(name==="unconnected") return;
+                const medal = i===0?"🥇 ":i===1?"🥈 ":i===2?"🥉 ":"";
+                const row = document.createElement("tr");
+                row.innerHTML = `<td>${medal}${name}</td><td>${vel.toFixed(2)}</td>`;
+                tbody.appendChild(row);
+            });
+    }
 
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
+    function spawnRealtimePlayerIndicator(data) {
+        if(!data||!data.name) return;
 
-/* ===== Leaderboard ===== */
-function updateLeaderboard() {
-    const tbody = document.getElementById("leaderboard-body");
-    tbody.innerHTML = "";
-    Array.from(maxVelocities.entries())
-        .sort((a,b)=>b[1]-a[1])
-        .forEach(([name, vel], i)=>{
-            if(name==="unconnected") return;
-            const medal = i===0?"🥇 ":i===1?"🥈 ":i===2?"🥉 ":"";
-            const row = document.createElement("tr");
-            row.innerHTML = `<td>${medal}${name}</td><td>${vel.toFixed(2)}</td>`;
-            tbody.appendChild(row);
-        });
-}
+        const baseX=(data.x-offsetX)/scaleFactor;
+        const baseY=(data.z-offsetZ)/scaleFactor;
+        const baseZ=-(data.y-offsetY)/scaleFactor;
+        const posX=baseX*modelScale;
+        const posY=baseY*modelScale+testHeight+1;
+        const posZ=baseZ*modelScale;
 
-/* ===== Spawn/update players ===== */
-function spawnRealtimePlayerIndicator(data) {
-    if(!data||!data.name) return;
-
-    const posX = ((data.x-offsetX)/scaleFactor)*modelScale;
-    const posY = ((data.z-offsetZ)/scaleFactor)*modelScale + testHeight +1;
-    const posZ = (-(data.y-offsetY)/scaleFactor)*modelScale;
-
-    if(data.vel!==undefined){
-        const adjustedVel = data.vel/10;
-        const currentMax = maxVelocities.get(data.name) || 0;
-        if(adjustedVel>currentMax){
-            maxVelocities.set(data.name, adjustedVel);
-            localStorage.setItem("maxVelocities", JSON.stringify(Object.fromEntries(maxVelocities)));
-            updateLeaderboard();
+        if(data.vel!==undefined){
+            const adjustedVel = data.vel/10;
+            const currentMax = maxVelocities.get(data.name)||0;
+            if(adjustedVel>currentMax){
+                maxVelocities.set(data.name, adjustedVel);
+                localStorage.setItem("maxVelocities", JSON.stringify(Object.fromEntries(maxVelocities)));
+                updateLeaderboard();
+            }
         }
+
+        if(!playerMeshes.has(data.name)){
+            const mesh = new THREE.Mesh(playerGeometry, playerMaterial);
+            scene.add(mesh);
+            const canvas = document.createElement("canvas");
+            canvas.width=256; canvas.height=64;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle="rgba(0,0,0,0.7)";
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle="white";
+            ctx.font="bold 20px Arial";
+            ctx.fillText(data.name,10,35);
+            const label = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(canvas) }));
+            label.scale.set(20,5,1);
+            scene.add(label);
+            playerMeshes.set(data.name,{ mesh, label, targetPos:new THREE.Vector3() });
+        }
+
+        const player = playerMeshes.get(data.name);
+        player.targetPos.set(posX,posY,posZ);
+        player.label.position.set(posX,posY+3,posZ);
+        latestPlayerData[data.name]=data;
     }
 
-    if(!playerMeshes.has(data.name)){
-        const mesh = new THREE.Mesh(playerGeometry, playerMaterial);
-        scene.add(mesh);
-
-        const canvas = document.createElement("canvas");
-        canvas.width = 256; canvas.height = 64;
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "rgba(0,0,0,0.7)";
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle = "white";
-        ctx.font = "bold 20px Arial";
-        ctx.fillText(data.name,10,35);
-        const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-        label.scale.set(20,5,1);
-        scene.add(label);
-
-        playerMeshes.set(data.name,{mesh,label,targetPos:new THREE.Vector3()});
-    }
-
-    const player = playerMeshes.get(data.name);
-    player.targetPos.set(posX,posY,posZ);
-    player.label.position.set(posX,posY+3,posZ);
-    latestPlayerData[data.name]=data;
-}
-
-/* ===== Load map ===== */
-const loader = new THREE.GLTFLoader();
-async function loadMap(){
-    try{
-        const gltf = await new Promise((res,rej)=>{
-            loader.load("/gm_bigcity/scene.gltf",res,(p)=>{
-                const percent = (p.loaded/p.total*100).toFixed(2);
-                document.getElementById("loading").innerText = `Loading map... ${percent}%`;
-            },rej);
-        });
-        scene.add(gltf.scene);
-        gltf.scene.scale.set(2.5,2.5,2.5);
-        gltf.scene.position.set(0,0,0);
-        document.getElementById("loading").style.display="none";
-        initRealtimePlayer();
-    }catch(err){
-        console.error("Error loading map:",err);
-        document.getElementById("loading").innerText="Failed to load map.";
-        setTimeout(()=>{document.getElementById("loading").style.display="none"; initRealtimePlayer();},3000);
-    }
-}
-loadMap();
-
-/* ===== WebSocket ===== */
-function initRealtimePlayer(){
-    const socket = new WebSocket("wss://emm-mapped.onrender.com/data");
-    socket.onopen=()=>console.log("WebSocket connected");
-    socket.onmessage=(event)=>{
+    // ===== Load map =====
+    const loader = new THREE.GLTFLoader();
+    let mapLoaded = false;
+    async function loadMap(){
         try{
-            const msg = JSON.parse(event.data);
-            if(msg.players){
-                const current = new Set();
-                msg.players.forEach(p=>{spawnRealtimePlayerIndicator(p); current.add(p.name)});
-                playerMeshes.forEach((pl,name)=>{
-                    if(!current.has(name)){
-                        scene.remove(pl.mesh);
-                        scene.remove(pl.label);
-                        playerMeshes.delete(name);
-                        updateLeaderboard();
-                    }
-                });
-            }
-        }catch(e){console.error("Bad WS msg:",e);}
-    };
-    socket.onclose=()=>console.log("WebSocket closed");
-    socket.onerror=(e)=>console.error("WebSocket error:",e);
-}
-
-/* ===== Desktop controls ===== */
-document.addEventListener("keydown",(e)=>{
-    switch(e.key.toLowerCase()){
-        case "w": keys.w=1; break;
-        case "a": keys.a=1; break;
-        case "s": keys.s=1; break;
-        case "d": keys.d=1; break;
-        case " ": keys.space=1; e.preventDefault(); break;
-        case "control": keys.ctrl=1; break;
-        case "tab": keys.tab=1; document.getElementById("leaderboard").style.display="block"; e.preventDefault(); break;
-    }
-});
-document.addEventListener("keyup",(e)=>{
-    switch(e.key.toLowerCase()){
-        case "w": keys.w=0; break;
-        case "a": keys.a=0; break;
-        case "s": keys.s=0; break;
-        case "d": keys.d=0; break;
-        case " ": keys.space=0; break;
-        case "control": keys.ctrl=0; break;
-        case "tab": keys.tab=0; document.getElementById("leaderboard").style.display="none"; break;
-    }
-});
-
-/* ===== Follow player on click ===== */
-document.addEventListener("click",(e)=>{
-    renderer.domElement.requestPointerLock();
-    mouse.x=(e.clientX/window.innerWidth)*2-1;
-    mouse.y=-(e.clientY/window.innerHeight)*2+1;
-    raycaster.setFromCamera(mouse,camera);
-    const meshes=Array.from(playerMeshes.values()).map(p=>p.mesh);
-    const hits=raycaster.intersectObjects(meshes);
-    if(hits.length>0){
-        const clicked=hits[0].object;
-        for(let [name,pl] of playerMeshes.entries()){
-            if(pl.mesh===clicked){
-                followTarget=name;
-                pl.mesh.visible=false;
-                pl.label.visible=false;
-            }
+            const gltf = await new Promise((res,rej)=>{
+                loader.load("/gm_bigcity/scene.gltf",res,
+                    (p)=>document.getElementById("loading").innerText=`Loading map... ${(p.loaded/p.total*100).toFixed(2)}%`,
+                    rej);
+            });
+            scene.add(gltf.scene);
+            gltf.scene.scale.set(2.5,2.5,2.5);
+            gltf.scene.position.set(0,0,0);
+            document.getElementById("loading").style.display="none";
+            mapLoaded = true;
+            initRealtimePlayer();
+            vrButton.disabled = false; // enable VR button after map load
+        }catch(err){
+            console.error("Error loading map:",err);
+            document.getElementById("loading").innerText="Failed to load map.";
+            setTimeout(()=>{document.getElementById("loading").style.display="none"; initRealtimePlayer();},3000);
         }
-    } else {
-        followTarget=null;
-        playerMeshes.forEach(p=>{p.mesh.visible=true;p.label.visible=true;});
     }
-});
+    loadMap();
 
-/* ===== Animation loop ===== */
-function animate(){
-    renderer.setAnimationLoop(()=>{
-        const delta = clock.getDelta();
+    // ===== WebSocket =====
+    function initRealtimePlayer(){
+        const socket = new WebSocket("wss://emm-mapped.onrender.com/data");
+        socket.onopen=()=>console.log("WebSocket connected");
+        socket.onmessage=(event)=>{
+            try{
+                const msg=JSON.parse(event.data);
+                if(msg.players){
+                    const current=new Set();
+                    msg.players.forEach(p=>{ spawnRealtimePlayerIndicator(p); current.add(p.name); });
+                    playerMeshes.forEach((pl,name)=>{
+                        if(!current.has(name)){
+                            scene.remove(pl.mesh); scene.remove(pl.label); playerMeshes.delete(name);
+                            updateLeaderboard();
+                        }
+                    });
+                }
+            }catch(e){console.error("Bad WS msg:",e);}
+        };
+        socket.onclose=()=>console.log("WebSocket closed");
+        socket.onerror=(e)=>console.error("WebSocket error:",e);
+    }
 
-        // Lerp player indicators
-        playerMeshes.forEach(p=>{
-            p.mesh.position.lerp(p.targetPos,0.1);
-            p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
-        });
-
-        // Desktop freecam
-        if(!followTarget && !renderer.xr.isPresenting){
-            const speed=moveSpeed*delta;
-            const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
-            const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
-            if(keys.w) camera.position.addScaledVector(dir,speed);
-            if(keys.s) camera.position.addScaledVector(dir,-speed);
-            if(keys.a) camera.position.addScaledVector(right,-speed);
-            if(keys.d) camera.position.addScaledVector(right,speed);
-            if(keys.space) camera.position.y+=speed;
-            if(keys.ctrl) camera.position.y-=speed;
-            camera.rotation.set(pitch,yaw,0,"YXZ");
+    // ===== Desktop controls =====
+    document.addEventListener("keydown",(e)=>{
+        switch(e.key.toLowerCase()){
+            case "w": keys.w=1; break;
+            case "a": keys.a=1; break;
+            case "s": keys.s=1; break;
+            case "d": keys.d=1; break;
+            case " ": keys.space=1;e.preventDefault();break;
+            case "control": keys.ctrl=1;break;
+            case "tab": keys.tab=1; document.getElementById("leaderboard").style.display="block"; e.preventDefault(); break;
         }
-
-        // Follow target
-        if(followTarget && playerMeshes.has(followTarget)){
-            const pData=latestPlayerData[followTarget];
-            if(pData){
-                const posX = ((pData.x-offsetX)/scaleFactor)*modelScale;
-                const posY = ((pData.z-offsetZ)/scaleFactor)*modelScale+testHeight+3;
-                const posZ = (-(pData.y-offsetY)/scaleFactor)*modelScale;
-                camera.position.set(posX,posY,posZ);
-                const pch=THREE.MathUtils.degToRad(-pData.pitch||0);
-                const yw=THREE.MathUtils.degToRad(pData.yaw||0);
-                camera.quaternion.setFromEuler(new THREE.Euler(pch,yw-Math.PI/2,0,"YXZ"));
-            }
-        }
-
-        renderer.render(scene,camera);
     });
-}
-animate();
+    document.addEventListener("keyup",(e)=>{
+        switch(e.key.toLowerCase()){
+            case "w": keys.w=0; break;
+            case "a": keys.a=0; break;
+            case "s": keys.s=0; break;
+            case "d": keys.d=0; break;
+            case " ": keys.space=0; break;
+            case "control": keys.ctrl=0; break;
+            case "tab": keys.tab=0; document.getElementById("leaderboard").style.display="none"; break;
+        }
+    });
 
-/* ===== Resize ===== */
-window.addEventListener("resize",()=>{
-    camera.aspect=window.innerWidth/window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth,window.innerHeight);
-});
-
-/* ===== WebXR button ===== */
-const vrButton = document.getElementById("enter-vr-btn");
-vrButton.addEventListener("click", ()=>{
-    if(navigator.xr){
-        navigator.xr.isSessionSupported('immersive-vr').then(supported=>{
-            if(supported){
-                navigator.xr.requestSession('immersive-vr').then(session=>{
-                    renderer.xr.setSession(session);
-                    console.log("Entered VR session");
-                }).catch(err=>console.error("Failed to enter VR:",err));
-            } else {
-                alert("WebXR VR not supported on this device");
+    // ===== Click follow =====
+    document.addEventListener("click",(e)=>{
+        renderer.domElement.requestPointerLock();
+        mouse.x=(e.clientX/window.innerWidth)*2-1;
+        mouse.y=-(e.clientY/window.innerHeight)*2+1;
+        raycaster.setFromCamera(mouse,camera);
+        const meshes = Array.from(playerMeshes.values()).map(p=>p.mesh);
+        const hits = raycaster.intersectObjects(meshes);
+        if(hits.length>0){
+            const clicked=hits[0].object;
+            for(let [name,pl] of playerMeshes.entries()){
+                if(pl.mesh===clicked){
+                    followTarget=name;
+                    console.log("Following",name);
+                    pl.mesh.visible=false; pl.label.visible=false;
+                }
             }
+        }else{
+            followTarget=null;
+            playerMeshes.forEach(p=>{p.mesh.visible=true;p.label.visible=true});
+        }
+    });
+
+    // ===== Animation loop =====
+    function animate(){
+        renderer.setAnimationLoop(()=>{
+            const delta=clock.getDelta();
+
+            playerMeshes.forEach(p=>{
+                p.mesh.position.lerp(p.targetPos,0.1);
+                p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
+            });
+
+            if(!followTarget && !renderer.xr.isPresenting){
+                const speed=moveSpeed*delta;
+                const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
+                const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
+                if(keys.w) camera.position.addScaledVector(dir,speed);
+                if(keys.s) camera.position.addScaledVector(dir,-speed);
+                if(keys.a) camera.position.addScaledVector(right,-speed);
+                if(keys.d) camera.position.addScaledVector(right,speed);
+                if(keys.space) camera.position.y+=speed;
+                if(keys.ctrl) camera.position.y-=speed;
+                camera.rotation.set(pitch,yaw,0,"YXZ");
+            }
+
+            if(followTarget && playerMeshes.has(followTarget)){
+                const p=latestPlayerData[followTarget];
+                if(p){
+                    const posX=((p.x-offsetX)/scaleFactor)*modelScale;
+                    const posY=((p.z-offsetZ)/scaleFactor)*modelScale+testHeight+3;
+                    const posZ=(-(p.y-offsetY)/scaleFactor)*modelScale;
+                    camera.position.set(posX,posY,posZ);
+                    const pch=THREE.MathUtils.degToRad(-p.pitch||0);
+                    const yw=THREE.MathUtils.degToRad(p.yaw||0);
+                    camera.quaternion.setFromEuler(new THREE.Euler(pch,yw-Math.PI/2,0,"YXZ"));
+                }
+            }
+
+            renderer.render(scene,camera);
         });
-    } else {
-        alert("WebXR not available in this browser");
     }
-});
+    animate();
+
+    window.addEventListener("resize",()=>{
+        camera.aspect=window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth,window.innerHeight);
+    });
+
+    // ===== VR Button =====
+    const vrButton = document.createElement("button");
+    vrButton.style.position="absolute";
+    vrButton.style.bottom="20px";
+    vrButton.style.left="50%";
+    vrButton.style.transform="translateX(-50%)";
+    vrButton.style.padding="10px";
+    vrButton.style.zIndex="10";
+    vrButton.innerText="Enter VR";
+    vrButton.disabled = true; // disabled until map loads
+    document.body.appendChild(vrButton);
+
+    vrButton.addEventListener("click", ()=>{
+        if(!mapLoaded) return;
+        navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
+            .then(session => renderer.xr.setSession(session))
+            .catch(err => console.warn("WebXR not available:",err));
+    });
 </script>
 </body>
 </html>
