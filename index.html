@@ -90,6 +90,14 @@
         grip2.add(controllerModelFactory.createControllerModel(grip2));
         scene.add(grip2);
 
+        // Controller debug spheres
+        const sphereGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+        const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const controllerSphere1 = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        const controllerSphere2 = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        scene.add(controllerSphere1);
+        scene.add(controllerSphere2);
+
         // Players
         const playerGeometry = new THREE.CylinderGeometry(1,1,2,8);
         const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
@@ -101,6 +109,7 @@
         let followTarget = null;
 
         let vrMoveForward = 0, vrMoveRight = 0, vrMoveUp = 0;
+        let gripPressed = false;
 
         // Debug sprite setup
         const debugCanvas = document.createElement("canvas");
@@ -115,7 +124,6 @@
         const debugTexture = new THREE.CanvasTexture(debugCanvas);
         const debugSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: debugTexture }));
         debugSprite.scale.set(5, 2.5, 1);
-        debugSprite.position.set(0, 0, -5); // In front of camera
         scene.add(debugSprite);
 
         // Movement indicator cube
@@ -123,6 +131,24 @@
         const cubeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         const movementCube = new THREE.Mesh(cubeGeometry, cubeMaterial);
         scene.add(movementCube);
+
+        // WebXR session listeners
+        renderer.xr.addEventListener('sessionstart', () => {
+            const session = renderer.xr.getSession();
+            if (session) {
+                session.addEventListener('inputsourceschange', () => {
+                    console.log('Input sources changed:', session.inputSources);
+                });
+            }
+        });
+
+        // Grip button handling for fallback movement
+        controller1.addEventListener('selectstart', onSelectStart);
+        controller2.addEventListener('selectstart', onSelectStart);
+        controller1.addEventListener('squeezestart', () => { gripPressed = true; });
+        controller2.addEventListener('squeezestart', () => { gripPressed = true; });
+        controller1.addEventListener('squeezeend', () => { gripPressed = false; });
+        controller2.addEventListener('squeezeend', () => { gripPressed = false; });
 
         // Leaderboard UI
         function updateLeaderboard() {
@@ -301,9 +327,6 @@
         });
 
         // VR selection
-        controller1.addEventListener('selectstart', onSelectStart);
-        controller2.addEventListener('selectstart', onSelectStart);
-
         function onSelectStart(event) {
             const controller = event.target;
             const tempMatrix = new THREE.Matrix4();
@@ -347,24 +370,35 @@
 
             if (renderer.xr.isPresenting && !followTarget) {
                 const session = renderer.xr.getSession();
-                const inputSources = session.inputSources;
+                const inputSources = session ? session.inputSources : [];
                 vrMoveForward = 0;
                 vrMoveRight = 0;
                 vrMoveUp = 0;
                 let debugText = "Joystick Debug:\n";
+                debugText += `Input Sources: ${inputSources.length}\n`;
                 for (let source of inputSources) {
                     if (source.gamepad && source.gamepad.axes.length >= 2) {
                         debugText += `Controller: ${source.handedness}, Axes: ${source.gamepad.axes.join(', ')}\n`;
+                        debugText += `Buttons: ${source.gamepad.buttons.map(b => b.pressed ? 1 : 0).join(', ')}\n`;
                         if (source.handedness === 'left') {
-                            vrMoveUp = -source.gamepad.axes[3] || -source.gamepad.axes[1] || 0; // Fallback axes
+                            vrMoveUp = -source.gamepad.axes[3] || -source.gamepad.axes[1] || 0;
                         } else if (source.handedness === 'right') {
                             vrMoveForward = -source.gamepad.axes[3] || -source.gamepad.axes[1] || 0;
                             vrMoveRight = source.gamepad.axes[2] || source.gamepad.axes[0] || 0;
                         }
                     }
                 }
+
+                // Fallback: Use grip button for forward movement
+                if (gripPressed) {
+                    vrMoveForward = -1.0; // Simulate forward movement
+                    debugText += "Grip: Pressed\n";
+                } else {
+                    debugText += "Grip: Released\n";
+                }
+
                 debugText += `Movement: Fwd=${vrMoveForward.toFixed(2)}, Right=${vrMoveRight.toFixed(2)}, Up=${vrMoveUp.toFixed(2)}`;
-                
+
                 // Update debug sprite
                 debugCtx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
                 debugCtx.fillStyle = "rgba(0,0,0,0.7)";
@@ -375,9 +409,12 @@
                     debugCtx.fillText(line, 10, 30 + i * 30);
                 });
                 debugTexture.needsUpdate = true;
+                debugSprite.visible = true;
+                debugSprite.position.copy(camera.position).add(new THREE.Vector3(0, 0.5, -2));
 
-                // Update movement cube position (relative to camera)
-                const cubeSpeed = 2 * delta; // Smaller scale for visibility
+                // Update movement cube position
+                movementCube.visible = true;
+                const cubeSpeed = 2 * delta;
                 const headsetDir = new THREE.Vector3();
                 camera.getWorldDirection(headsetDir);
                 headsetDir.y = 0;
@@ -385,23 +422,27 @@
                 const headsetRight = new THREE.Vector3().crossVectors(headsetDir, new THREE.Vector3(0, 1, 0)).normalize();
                 const cubePos = new THREE.Vector3();
                 cubePos.copy(camera.position);
-                cubePos.addScaledVector(headsetDir, vrMoveForward * cubeSpeed - 2); // In front of camera
+                cubePos.addScaledVector(headsetDir, vrMoveForward * cubeSpeed - 2);
                 cubePos.addScaledVector(headsetRight, vrMoveRight * cubeSpeed);
                 cubePos.y += vrMoveUp * cubeSpeed;
                 movementCube.position.copy(cubePos);
+
+                // Update controller spheres
+                controllerSphere1.position.setFromMatrixPosition(controller1.matrixWorld);
+                controllerSphere2.position.setFromMatrixPosition(controller2.matrixWorld);
+                controllerSphere1.visible = true;
+                controllerSphere2.visible = true;
 
                 // Apply camera movement
                 const speed = moveSpeed * delta;
                 camera.position.addScaledVector(headsetDir, vrMoveForward * speed);
                 camera.position.addScaledVector(headsetRight, vrMoveRight * speed);
                 camera.position.y += vrMoveUp * speed;
-
-                // Ensure debug sprite follows camera
-                debugSprite.position.copy(camera.position).add(new THREE.Vector3(0, 0.5, -2)); // Above and in front
             } else {
-                // Hide debug sprite and movement cube in non-VR mode
                 debugSprite.visible = false;
                 movementCube.visible = false;
+                controllerSphere1.visible = false;
+                controllerSphere2.visible = false;
                 if (!followTarget) {
                     const speed=moveSpeed*delta;
                     const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
@@ -416,7 +457,7 @@
                 }
             }
 
-            // Temporarily comment out follow mode to avoid interference
+            // Temporarily comment out follow mode
             /*
             if(followTarget && playerMeshes.has(followTarget)){
                 const playerData=latestPlayerData[followTarget];
@@ -431,7 +472,6 @@
 
                     const pch=THREE.MathUtils.degToRad(-playerData.pitch||0);
                     const yw=THREE.MathUtils.degToRad(playerData.yaw||0);
-                    
                     camera.quaternion.setFromEuler(new THREE.Euler(pch,yw - Math.PI/2,0,"YXZ"));
                 }
             }
