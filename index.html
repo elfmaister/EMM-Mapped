@@ -36,9 +36,10 @@
 </div>
 
 <script type="module">
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
-import { GLTFLoader } from 'https://threejs.org/examples/jsm/loaders/GLTFLoader.js';
-import { VRButton } from 'https://threejs.org/examples/jsm/webxr/VRButton.js';
+// ✅ Import modules from URLs
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
+import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/webxr/VRButton.js';
 
 // Shared constants
 const offsetX = 6498.061, offsetY = -7027.718, offsetZ = -10647.092;
