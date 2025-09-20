@@ -2,44 +2,11 @@
 <html>
 <head>
     <title>EMM 3D Map (VR Ready)</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <!-- ✅ Use GitHub CDN for non-module VRButton -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/vr/VRButton.js"></script>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
-        #loading {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: white; font-family: Arial; z-index: 100;
-        }
-        #leaderboard {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8); color: white;
-            padding: 20px; border-radius: 8px; font-family: Arial;
-            z-index: 200; display: none;
-            max-height: 80vh; overflow-y: auto;
-        }
-        #leaderboard h2 { margin: 0 0 10px; text-align: center; }
-        #leaderboard table { width: 100%; border-collapse: collapse; }
-        #leaderboard th, #leaderboard td {
-            padding: 8px; text-align: left; border-bottom: 1px solid #555;
-        }
-    </style>
-</head>
-<body>
-    <div id="loading">Loading map...</div>
-    <div id="leaderboard">
-        <h2>Fastest Velocities</h2>
-        <table>
-            <thead><tr><th>Player</th><th>Max Velocity (u/s)</th></tr></thead>
-            <tbody id="leaderboard-body"></tbody>
-        </table>
-    </div>
+    <script type="module">
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+        import { GLTFLoader } from 'https://unpkg.com/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
+        import { VRButton } from './scripts/VRButton.js'; // <-- locally hosted module
 
-    <script>
         // Shared transform constants
         const offsetX = 6498.061;
         const offsetY = -7027.718;
@@ -145,7 +112,7 @@
         }
 
         // Load map
-        const loader = new THREE.GLTFLoader();
+        const loader = new GLTFLoader();
         async function loadMap() {
             try {
                 const gltf = await new Promise((res,rej)=>{
@@ -279,5 +246,38 @@
             renderer.setSize(window.innerWidth,window.innerHeight);
         });
     </script>
+
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #loading {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: white; font-family: Arial; z-index: 100;
+        }
+        #leaderboard {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); color: white;
+            padding: 20px; border-radius: 8px; font-family: Arial;
+            z-index: 200; display: none;
+            max-height: 80vh; overflow-y: auto;
+        }
+        #leaderboard h2 { margin: 0 0 10px; text-align: center; }
+        #leaderboard table { width: 100%; border-collapse: collapse; }
+        #leaderboard th, #leaderboard td {
+            padding: 8px; text-align: left; border-bottom: 1px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading map...</div>
+    <div id="leaderboard">
+        <h2>Fastest Velocities</h2>
+        <table>
+            <thead><tr><th>Player</th><th>Max Velocity (u/s)</th></tr></thead>
+            <tbody id="leaderboard-body"></tbody>
+        </table>
+    </div>
 </body>
 </html>
