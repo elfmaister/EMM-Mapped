@@ -30,6 +30,12 @@
         #leaderboard th, #leaderboard td {
             padding: 8px; text-align: left; border-bottom: 1px solid #555;
         }
+        #debug {
+            position: absolute; top: 10px; left: 10px;
+            color: white; font-family: Arial; font-size: 16px;
+            background: rgba(0,0,0,0.7); padding: 10px;
+            z-index: 300; display: none;
+        }
     </style>
 </head>
 <body>
@@ -41,6 +47,7 @@
             <tbody id="leaderboard-body"></tbody>
         </table>
     </div>
+    <div id="debug">Joystick Debug: Waiting...</div>
 
     <script type="module">
         import * as THREE from 'three';
@@ -323,22 +330,28 @@
                 p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
             });
 
-            if (renderer.xr.isPresenting) {
+            if (renderer.xr.isPresenting && !followTarget) {
                 const session = renderer.xr.getSession();
                 const inputSources = session.inputSources;
                 vrMoveForward = 0;
                 vrMoveRight = 0;
                 vrMoveUp = 0;
+                let debugText = "Joystick Debug:\n";
                 for (let source of inputSources) {
-                    if (source.gamepad) {
+                    if (source.gamepad && source.gamepad.axes.length >= 2) {
+                        debugText += `Controller: ${source.handedness}, Axes: ${source.gamepad.axes.join(', ')}\n`;
                         if (source.handedness === 'left') {
-                            vrMoveUp = -source.gamepad.axes[3] || 0; // Left joystick Y for up/down
+                            vrMoveUp = -source.gamepad.axes[1] || 0; // Try axes[1] for left joystick Y (up/down)
                         } else if (source.handedness === 'right') {
-                            vrMoveForward = -source.gamepad.axes[3] || 0; // Right joystick Y for forward/back
-                            vrMoveRight = source.gamepad.axes[2] || 0; // Right joystick X for left/right
+                            vrMoveForward = -source.gamepad.axes[1] || 0; // Try axes[1] for right joystick Y (forward/back)
+                            vrMoveRight = source.gamepad.axes[0] || 0; // Try axes[0] for right joystick X (left/right)
                         }
                     }
                 }
+                debugText += `Movement: Fwd=${vrMoveForward.toFixed(2)}, Right=${vrMoveRight.toFixed(2)}, Up=${vrMoveUp.toFixed(2)}`;
+                document.getElementById("debug").innerText = debugText;
+                document.getElementById("debug").style.display = "block";
+
                 const speed = moveSpeed * delta;
                 const headsetDir = new THREE.Vector3();
                 camera.getWorldDirection(headsetDir);
@@ -348,19 +361,24 @@
                 camera.position.addScaledVector(headsetDir, vrMoveForward * speed);
                 camera.position.addScaledVector(headsetRight, vrMoveRight * speed);
                 camera.position.y += vrMoveUp * speed;
-            } else if(!followTarget){
-                const speed=moveSpeed*delta;
-                const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
-                const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
-                if(keys.w) camera.position.addScaledVector(dir,-speed);
-                if(keys.s) camera.position.addScaledVector(dir,speed);
-                if(keys.a) camera.position.addScaledVector(right,speed);
-                if(keys.d) camera.position.addScaledVector(right,-speed);
-                if(keys.space) camera.position.y+=speed;
-                if(keys.ctrl) camera.position.y-=speed;
-                camera.rotation.set(pitch,yaw,0,"YXZ");
+            } else {
+                document.getElementById("debug").style.display = "none";
+                if (!followTarget) {
+                    const speed=moveSpeed*delta;
+                    const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
+                    const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
+                    if(keys.w) camera.position.addScaledVector(dir,-speed);
+                    if(keys.s) camera.position.addScaledVector(dir,speed);
+                    if(keys.a) camera.position.addScaledVector(right,speed);
+                    if(keys.d) camera.position.addScaledVector(right,-speed);
+                    if(keys.space) camera.position.y+=speed;
+                    if(keys.ctrl) camera.position.y-=speed;
+                    camera.rotation.set(pitch,yaw,0,"YXZ");
+                }
             }
 
+            // Temporarily comment out follow mode to avoid interference
+            /*
             if(followTarget && playerMeshes.has(followTarget)){
                 const playerData=latestPlayerData[followTarget];
                 if(playerData){
@@ -378,6 +396,7 @@
                     camera.quaternion.setFromEuler(new THREE.Euler(pch,yw - Math.PI/2,0,"YXZ"));
                 }
             }
+            */
 
             renderer.render(scene,camera);
         }
