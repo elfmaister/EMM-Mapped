@@ -4,7 +4,8 @@
     <title>EMM 3D Map (VR Ready)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/jsm/webxr/VRButton.js"></script>
+    <!-- ✅ Use non-module VRButton -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/vr/VRButton.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -61,7 +62,7 @@
 
         // ✅ Enable WebXR
         renderer.xr.enabled = true;
-        document.body.appendChild(THREE.VRButton.createButton(renderer));
+        document.body.appendChild(VRButton.createButton(renderer));
 
         // Lights
         scene.add(new THREE.AmbientLight(0xffffff, 1.0));
