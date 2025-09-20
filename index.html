@@ -37,9 +37,9 @@
 </div>
 
 <script type="module">
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
-import { VRButton } from './scripts/VRButton.js'; // locally hosted ES module
+import { VRButton } from '/scripts/VRButton.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -92,7 +92,6 @@ function spawnRealtimePlayerIndicator(data) {
     const posY=baseY*modelScale+testHeight+1;
     const posZ=baseZ*modelScale;
 
-    // Track max velocity
     if(data.vel!==undefined){
         const adjustedVel = data.vel/10;
         const currentMax = maxVelocities.get(data.name) || 0;
