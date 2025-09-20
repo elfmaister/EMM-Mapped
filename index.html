@@ -1,30 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>EMM 3D Map (VR Ready)</title>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
-        #loading {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: white; font-family: Arial; z-index: 100;
-        }
-        #leaderboard {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8); color: white;
-            padding: 20px; border-radius: 8px; font-family: Arial;
-            z-index: 200; display: none;
-            max-height: 80vh; overflow-y: auto;
-        }
-        #leaderboard h2 { margin: 0 0 10px; text-align: center; }
-        #leaderboard table { width: 100%; border-collapse: collapse; }
-        #leaderboard th, #leaderboard td {
-            padding: 8px; text-align: left; border-bottom: 1px solid #555;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>EMM 3D Map (VR Ready)</title>
+<style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+    #loading {
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        color: white; font-family: Arial; z-index: 100;
+    }
+    #leaderboard {
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0,0,0,0.8); color: white;
+        padding: 20px; border-radius: 8px; font-family: Arial;
+        z-index: 200; display: none;
+        max-height: 80vh; overflow-y: auto;
+    }
+    #leaderboard h2 { margin: 0 0 10px; text-align: center; }
+    #leaderboard table { width: 100%; border-collapse: collapse; }
+    #leaderboard th, #leaderboard td {
+        padding: 8px; text-align: left; border-bottom: 1px solid #555;
+    }
+</style>
 </head>
 <body>
 <div id="loading">Loading map...</div>
@@ -38,92 +38,79 @@
 
 <script type="module">
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
-import { GLTFLoader } from 'https://unpkg.com/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
-import { VRButton } from './scripts/VRButton.js'; // locally hosted module
-
-// Shared transform constants
-const offsetX = 6498.061;
-const offsetY = -7027.718;
-const offsetZ = -10647.092;
-const testHeight = 45;
-const scaleFactor = 39.269;
-const modelScale = 2.5;
-
-const latestPlayerData = {};
-let yaw = 0, pitch = 0;
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
+import { VRButton } from './VRButton.js'; // locally hosted ES module
 
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 20000);
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
-document.body.appendChild(renderer.domElement);
-
-// Enable WebXR
 renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
-// Lights
+// Lighting
 scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
 dirLight.position.set(100,200,100);
 scene.add(dirLight);
 
-// Players
+// Player setup
 const playerGeometry = new THREE.CylinderGeometry(1,1,2,8);
 const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 const playerMeshes = new Map();
 const maxVelocities = new Map();
-
+const latestPlayerData = {};
 let followTarget = null;
 
-// Leaderboard UI
+// Leaderboard
 function updateLeaderboard() {
     const tbody = document.getElementById("leaderboard-body");
     tbody.innerHTML = "";
-    const sorted = Array.from(maxVelocities.entries()).sort((a,b)=>b[1]-a[1]);
-    sorted.forEach(([name,vel],i)=>{
-        if(name==="unconnected") return;
-        let medal = i===0?"🥇 ":i===1?"🥈 ":i===2?"🥉 ":"";
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${medal}${name}</td><td>${vel.toFixed(2)}</td>`;
-        tbody.appendChild(row);
-    });
+    Array.from(maxVelocities.entries())
+        .sort((a,b) => b[1]-a[1])
+        .forEach(([name,vel],i) => {
+            if(name==="unconnected") return;
+            let medal = i===0?"🥇 ":i===1?"🥈 ":i===2?"🥉 ":"";
+            const row = document.createElement("tr");
+            row.innerHTML = `<td>${medal}${name}</td><td>${vel.toFixed(2)}</td>`;
+            tbody.appendChild(row);
+        });
 }
 
-// Spawn or update a player
+// Spawn or update players
 function spawnRealtimePlayerIndicator(data) {
-    if (!data || !data.name) return;
-
-    // Transform GMod → Three.js
-    const baseX = (data.x - offsetX) / scaleFactor;
-    const baseY = (data.z - offsetZ) / scaleFactor;
-    const baseZ = -(data.y - offsetY) / scaleFactor;
-    const posX = baseX * modelScale;
-    const posY = baseY * modelScale + testHeight + 1;
-    const posZ = baseZ * modelScale;
+    if(!data || !data.name) return;
+    const offsetX=6498.061, offsetY=-7027.718, offsetZ=-10647.092, testHeight=45, scaleFactor=39.269, modelScale=2.5;
+    const baseX=(data.x-offsetX)/scaleFactor;
+    const baseY=(data.z-offsetZ)/scaleFactor;
+    const baseZ=-(data.y-offsetY)/scaleFactor;
+    const posX=baseX*modelScale;
+    const posY=baseY*modelScale+testHeight+1;
+    const posZ=baseZ*modelScale;
 
     // Track max velocity
-    if (data.vel !== undefined) {
-        const adjustedVel = data.vel / 10;
+    if(data.vel!==undefined){
+        const adjustedVel = data.vel/10;
         const currentMax = maxVelocities.get(data.name) || 0;
-        if (adjustedVel > currentMax) {
+        if(adjustedVel > currentMax){
             maxVelocities.set(data.name, adjustedVel);
             localStorage.setItem("maxVelocities", JSON.stringify(Object.fromEntries(maxVelocities)));
             updateLeaderboard();
         }
     }
 
-    if (!playerMeshes.has(data.name)) {
+    if(!playerMeshes.has(data.name)){
         const mesh = new THREE.Mesh(playerGeometry, playerMaterial);
         scene.add(mesh);
 
         const canvas = document.createElement("canvas");
-        canvas.width = 256; canvas.height = 64;
+        canvas.width=256; canvas.height=64;
         const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillStyle="rgba(0,0,0,0.7)";
         ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.fillStyle="white";
         ctx.font="bold 20px Arial";
@@ -138,59 +125,48 @@ function spawnRealtimePlayerIndicator(data) {
     const player = playerMeshes.get(data.name);
     player.targetPos.set(posX,posY,posZ);
     player.label.position.set(posX,posY+3,posZ);
-
     latestPlayerData[data.name] = data;
 }
 
 // Load map
 const loader = new GLTFLoader();
-async function loadMap() {
-    try {
-        const gltf = await new Promise((res,rej)=>{
-            loader.load("/gm_bigcity/scene.gltf",res,(p)=>{
-                const percent = (p.loaded/p.total*100).toFixed(2);
-                document.getElementById("loading").innerText=`Loading map... ${percent}%`;
-            },rej);
-        });
-        scene.add(gltf.scene);
-        gltf.scene.scale.set(2.5,2.5,2.5);
-        gltf.scene.position.set(0,15,0);
-        document.getElementById("loading").style.display="none";
-        initRealtimePlayer();
-    } catch(err) {
-        console.error("Error loading map:",err);
-        document.getElementById("loading").innerText="Failed to load map.";
-        setTimeout(()=>{document.getElementById("loading").style.display="none";initRealtimePlayer();},3000);
-    }
-}
-loadMap();
+loader.load('/gm_bigcity/scene.gltf', gltf => {
+    scene.add(gltf.scene);
+    gltf.scene.scale.set(2.5,2.5,2.5);
+    gltf.scene.position.set(0,15,0);
+    document.getElementById("loading").style.display="none";
+    initRealtimePlayer();
+}, xhr => {
+    const percent = (xhr.loaded/xhr.total*100).toFixed(2);
+    document.getElementById("loading").innerText=`Loading map... ${percent}%`;
+}, err=>{
+    console.error("Failed to load map:", err);
+    document.getElementById("loading").innerText="Failed to load map.";
+    setTimeout(()=>document.getElementById("loading").style.display="none",3000);
+});
 
-// WebSocket connection
-function initRealtimePlayer() {
+// WebSocket
+function initRealtimePlayer(){
     const socket = new WebSocket("wss://emm-mapped.onrender.com/data");
-    socket.onopen = () => console.log("WebSocket connected");
-    socket.onmessage = (event) => {
-        try {
+    socket.onopen = ()=>console.log("WebSocket connected");
+    socket.onmessage = (event)=>{
+        try{
             const msg = JSON.parse(event.data);
-            if (msg.players) {
+            if(msg.players){
                 const current = new Set();
-                msg.players.forEach(p => {
-                    spawnRealtimePlayerIndicator(p);
-                    current.add(p.name);
-                });
+                msg.players.forEach(p=>{ spawnRealtimePlayerIndicator(p); current.add(p.name); });
                 playerMeshes.forEach((pl,name)=>{
-                    if (!current.has(name)) {
-                        scene.remove(pl.mesh);
-                        scene.remove(pl.label);
+                    if(!current.has(name)){
+                        scene.remove(pl.mesh); scene.remove(pl.label);
                         playerMeshes.delete(name);
                         updateLeaderboard();
                     }
                 });
             }
-        } catch(e){console.error("Bad WS msg:",e);}
+        }catch(e){console.error("Bad WS message:",e);}
     };
-    socket.onclose = () => console.log("WebSocket closed");
-    socket.onerror = (e) => console.error("WebSocket error:",e);
+    socket.onclose = ()=>console.log("WebSocket closed");
+    socket.onerror = e=>console.error("WebSocket error:", e);
 }
 
 // Freecam controls
@@ -223,46 +199,25 @@ document.addEventListener("keyup",(e)=>{
 // Camera
 camera.position.set(0,50,50);
 
-// Main loop
+// Animation loop
 function animate(){
     renderer.setAnimationLoop(()=>{
         const delta = clock.getDelta();
-
         playerMeshes.forEach(p=>{
             p.mesh.position.lerp(p.targetPos,0.1);
             p.label.position.copy(p.mesh.position).add(new THREE.Vector3(0,3,0));
         });
 
         if(!renderer.xr.isPresenting){
-            if(!followTarget){
-                const speed = moveSpeed * delta;
-                const dir = new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
-                const right = new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
-                if(keys.w) camera.position.addScaledVector(dir,-speed);
-                if(keys.s) camera.position.addScaledVector(dir,speed);
-                if(keys.a) camera.position.addScaledVector(right,speed);
-                if(keys.d) camera.position.addScaledVector(right,-speed);
-                if(keys.space) camera.position.y+=speed;
-                if(keys.ctrl) camera.position.y-=speed;
-                camera.rotation.set(pitch,yaw,0,"YXZ");
-            }
-
-            if(followTarget && playerMeshes.has(followTarget)){
-                const playerData = latestPlayerData[followTarget];
-                if(playerData){
-                    const baseX = (playerData.x-offsetX)/scaleFactor;
-                    const baseY = (playerData.z-offsetZ)/scaleFactor;
-                    const baseZ = -(playerData.y-offsetY)/scaleFactor;
-                    const posX = baseX*modelScale;
-                    const posY = baseY*modelScale+testHeight+3;
-                    const posZ = baseZ*modelScale;
-                    camera.position.set(posX,posY,posZ);
-
-                    const pch = THREE.MathUtils.degToRad(-playerData.pitch||0);
-                    const yw = THREE.MathUtils.degToRad(playerData.yaw||0);
-                    camera.quaternion.setFromEuler(new THREE.Euler(pch,yw - Math.PI/2,0,"YXZ"));
-                }
-            }
+            const speed=moveSpeed*delta;
+            const dir=new THREE.Vector3(Math.sin(0),0,Math.cos(0)).normalize();
+            const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
+            if(keys.w) camera.position.addScaledVector(dir,-speed);
+            if(keys.s) camera.position.addScaledVector(dir,speed);
+            if(keys.a) camera.position.addScaledVector(right,speed);
+            if(keys.d) camera.position.addScaledVector(right,-speed);
+            if(keys.space) camera.position.y+=speed;
+            if(keys.ctrl) camera.position.y-=speed;
         }
 
         renderer.render(scene,camera);
