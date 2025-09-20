@@ -100,7 +100,7 @@
         const mouse = new THREE.Vector2();
         let followTarget = null;
 
-        let vrMoveForward = 0, vrMoveRight = 0;
+        let vrMoveForward = 0, vrMoveRight = 0, vrMoveUp = 0;
 
         // Leaderboard UI
         function updateLeaderboard() {
@@ -326,10 +326,17 @@
             if (renderer.xr.isPresenting) {
                 const session = renderer.xr.getSession();
                 const inputSources = session.inputSources;
+                vrMoveForward = 0;
+                vrMoveRight = 0;
+                vrMoveUp = 0;
                 for (let source of inputSources) {
-                    if (source.gamepad && source.handedness === 'left') {
-                        vrMoveForward = -source.gamepad.axes[3] || 0;
-                        vrMoveRight = source.gamepad.axes[2] || 0;
+                    if (source.gamepad) {
+                        if (source.handedness === 'left') {
+                            vrMoveUp = -source.gamepad.axes[3] || 0; // Left joystick Y for up/down
+                        } else if (source.handedness === 'right') {
+                            vrMoveForward = -source.gamepad.axes[3] || 0; // Right joystick Y for forward/back
+                            vrMoveRight = source.gamepad.axes[2] || 0; // Right joystick X for left/right
+                        }
                     }
                 }
                 const speed = moveSpeed * delta;
@@ -340,6 +347,7 @@
                 const headsetRight = new THREE.Vector3().crossVectors(headsetDir, new THREE.Vector3(0, 1, 0)).normalize();
                 camera.position.addScaledVector(headsetDir, vrMoveForward * speed);
                 camera.position.addScaledVector(headsetRight, vrMoveRight * speed);
+                camera.position.y += vrMoveUp * speed;
             } else if(!followTarget){
                 const speed=moveSpeed*delta;
                 const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize();
